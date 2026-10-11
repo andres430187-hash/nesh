@@ -22,11 +22,11 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
-  // Mode: 'direct' (just user + password) vs 'xtream' (server URL + user + password)
+  // Campos vacíos por seguridad para que no entren con datos predeterminados
   const [loginMode, setLoginMode] = useState<'direct' | 'xtream'>('xtream');
-  const [serverUrl, setServerUrl] = useState('http://smarterstv99.dyndns.tv:25461');
-  const [username, setUsername] = useState('BTVCOL');
-  const [password, setPassword] = useState('w2gNRjBYsrHA');
+  const [serverUrl, setServerUrl] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -71,8 +71,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      // Si no es admin, intenta conectar normalmente con Xtream
-      const targetServer = loginMode === 'xtream' ? serverUrl.trim() : 'http://smarterstv99.dyndns.tv:25461';
+      // LISTA BLANCA DE USUARIOS PERMITIDOS (Agregá acá los usuarios que vos vayas creando)
+      const usuariosPermitidos = ['cliente1', 'usuario_vip']; // Modificá o agregá tus usuarios reales acá
+
+      if (!usuariosPermitidos.includes(u)) {
+        setErrorMessage('Usuario no autorizado o no registrado por el administrador.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Si pasa la validación, intenta conectar normalmente con Xtream
+      const targetServer = loginMode === 'xtream' ? serverUrl.trim() : '';
 
       const user = await xtreamApi.login({
         username: u,
