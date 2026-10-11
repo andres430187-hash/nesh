@@ -32,7 +32,7 @@ const REAL_SERVER = 'http://bstv.online:8080';
 const REAL_USER = '68moct01';
 const REAL_PASS = '9846871h';
 
-// PROXY USANDO UN ENLACE DIRECTO MAS LIGERO
+// PROXY CORS
 const PROXY_URL = 'https://api.allorigins.win/raw?url=';
 
 export const xtreamApi = {
@@ -134,7 +134,12 @@ export const xtreamApi = {
     const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
 
     try {
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos máx
+
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -176,11 +181,18 @@ export const xtreamApi = {
     const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
 
     try {
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 segundos máx
+
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          return data.map((item: any) => ({
+          // Limitamos a 100 elementos si trae demasiados para que no colapse el navegador al renderizar
+          const slicedData = data.slice(0, 100);
+          return slicedData.map((item: any) => ({
             ...item,
             stream_id: item.stream_id || item.id || item.vod_id || item.series_id,
             name: item.name || item.title || item.stream_display_name || 'Contenido',
