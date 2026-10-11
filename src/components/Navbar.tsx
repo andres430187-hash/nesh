@@ -11,7 +11,6 @@ import {
   X,
   Radio,
   Shield,
-  Download,
 } from 'lucide-react';
 import { NeshContentType, NeshUser } from '../types';
 
@@ -27,7 +26,6 @@ interface NavbarProps {
   onOpenAccount: () => void;
   onLogout: () => void;
   onOpenAdmin?: () => void;
-  onOpenInstall?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -42,7 +40,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAccount,
   onLogout,
   onOpenAdmin,
-  onOpenInstall,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-neutral-900">
@@ -143,18 +140,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden sm:inline-block">{favoritesCount}</span>
               )}
             </button>
-
-            {/* Install App button */}
-            {onOpenInstall && (
-              <button
-                onClick={onOpenInstall}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-[#00ff66] text-white hover:text-[#00ff66] font-semibold text-xs tracking-wide transition-all cursor-pointer"
-                title="Instalar NesTV en Android o TV"
-              >
-                <Download className="w-4 h-4 text-[#00ff66]" />
-                <span className="hidden sm:inline">Instalar App</span>
-              </button>
-            )}
 
             {/* Admin Panel button (Only for Admin users) */}
             {user.role === 'admin' && onOpenAdmin && (

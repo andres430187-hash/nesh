@@ -24,18 +24,15 @@ import { VodModal } from './components/VodModal';
 import { SeriesModal } from './components/SeriesModal';
 import { AccountModal } from './components/AccountModal';
 import { AdminPanel } from './components/AdminPanel';
-import { InstallModal } from './components/InstallModal';
 
 export default function App() {
-  // Authentication state
-  const [user, setUser] = useState<NeshUser | null>(() => {
-    try {
-      const saved = sessionStorage.getItem('nestv_current_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  // Authentication state - starts at login screen asking for user & password
+  const [user, setUser] = useState<NeshUser | null>(null);
+
+  // Clear any existing stored session on startup to ensure login screen is shown
+  useEffect(() => {
+    sessionStorage.removeItem('nestv_current_user');
+  }, []);
 
   // Navigation and content state
   const [currentTab, setCurrentTab] = useState<NeshContentType>('live');
@@ -56,7 +53,6 @@ export default function App() {
   const [selectedSeries, setSelectedSeries] = useState<NeshSeries | null>(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [showInstallModal, setShowInstallModal] = useState(false);
 
   // Handle Login
   const handleLoginSuccess = (newUser: NeshUser) => {
@@ -260,17 +256,7 @@ export default function App() {
 
   // If user is not logged in, show Login Screen
   if (!user) {
-    return (
-      <>
-        <LoginScreen
-          onLoginSuccess={handleLoginSuccess}
-          onOpenInstall={() => setShowInstallModal(true)}
-        />
-        {showInstallModal && (
-          <InstallModal onClose={() => setShowInstallModal(false)} />
-        )}
-      </>
-    );
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
@@ -291,7 +277,6 @@ export default function App() {
         user={user}
         onOpenAccount={() => setShowAccountModal(true)}
         onOpenAdmin={() => setShowAdminPanel(true)}
-        onOpenInstall={() => setShowInstallModal(true)}
         onLogout={handleLogout}
       />
 
@@ -370,11 +355,6 @@ export default function App() {
           currentUser={user}
           onClose={() => setShowAdminPanel(false)}
         />
-      )}
-
-      {/* Install / Download APK Modal */}
-      {showInstallModal && (
-        <InstallModal onClose={() => setShowInstallModal(false)} />
       )}
     </div>
   );

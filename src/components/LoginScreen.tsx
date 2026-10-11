@@ -13,18 +13,15 @@ import {
   AlertCircle,
   KeyRound,
   Check,
-  Download,
-  Smartphone,
 } from 'lucide-react';
 import { NeshUser, SavedAccount } from '../types';
 import { xtreamApi, XtreamApiException } from '../services/xtreamApi';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: NeshUser) => void;
-  onOpenInstall?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onOpenInstall }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   // Mode: 'direct' (just user + password) vs 'xtream' (server URL + user + password)
   const [loginMode, setLoginMode] = useState<'direct' | 'xtream'>('xtream');
   const [serverUrl, setServerUrl] = useState('http://smarterstv99.dyndns.tv:25461');
@@ -124,17 +121,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onOpen
           <p className="text-xs tracking-widest text-neutral-400 mt-2 font-medium">
             TU MUNDO DE ENTRETENIMIENTO EN STREAMING
           </p>
-
-          {onOpenInstall && (
-            <button
-              type="button"
-              onClick={onOpenInstall}
-              className="mt-3.5 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-[#00ff66] text-[#00ff66] text-xs font-semibold cursor-pointer transition-all shadow-sm group hover:scale-105"
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Instalar App en Android / TV</span>
-            </button>
-          )}
         </div>
 
         {/* Mode Selector Tabs */}
