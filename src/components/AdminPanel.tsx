@@ -34,9 +34,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
   const [activeTab, setActiveTab] = useState<'users' | 'upstream'>('users');
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [upstream, setUpstream] = useState<UpstreamSettings>({
-    serverUrl: 'http://smarterstv99.dyndns.tv:25461',
-    username: 'BTVCOL',
-    password: 'w2gNRjBYsrHA',
+    serverUrl: '',
+    username: '',
+    password: '',
   });
 
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
@@ -58,9 +58,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
   const [formStatus, setFormStatus] = useState<'active' | 'suspended'>('active');
 
   // Upstream form
-  const [upServerUrl, setUpServerUrl] = useState('http://smarterstv99.dyndns.tv:25461');
-  const [upUsername, setUpUsername] = useState('BTVCOL');
-  const [upPassword, setUpPassword] = useState('w2gNRjBYsrHA');
+  const [upServerUrl, setUpServerUrl] = useState('');
+  const [upUsername, setUpUsername] = useState('');
+  const [upPassword, setUpPassword] = useState('');
   const [showUpPassword, setShowUpPassword] = useState(false);
   const [isSavingUpstream, setIsSavingUpstream] = useState(false);
 
@@ -96,9 +96,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
       if (savedUpstream) {
         const parsed = JSON.parse(savedUpstream);
         setUpstream(parsed);
-        setUpServerUrl(parsed.serverUrl);
-        setUpUsername(parsed.username);
-        setUpPassword(parsed.password);
+        setUpServerUrl(parsed.serverUrl || '');
+        setUpUsername(parsed.username || '');
+        setUpPassword(parsed.password || '');
       }
     } catch (err: any) {
       setError('Error al cargar datos locales');
@@ -171,7 +171,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
       }
 
       setUsers(updatedUsers);
-      // Guardar en la base de datos local y en las cuentas guardadas para evitar errores 404
       localStorage.setItem('nesh_managed_users', JSON.stringify(updatedUsers));
       localStorage.setItem('nesh_saved_accounts', JSON.stringify(updatedUsers));
       
@@ -222,10 +221,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
       
       setSuccessMessage('¡Configuración guardada! Actualizando reproductor y canales...');
       setTimeout(() => {
-        window.location.reload(); // Recarga limpia para aplicar la nueva lista y reproducir canales
+        window.location.reload();
       }, 1500);
     } catch (err: any) {
-      setError('Error al guardar servidor maestro');
+      setError('Error al guardar la configuración');
     } finally {
       setIsSavingUpstream(false);
     }
@@ -261,7 +260,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
                 </span>
               </h2>
               <p className="text-xs text-neutral-400">
-                Gestiona tus clientes y protege tus credenciales IPTV
+                Gestiona tus clientes y configura tu servidor Xtream o URL M3U
               </p>
             </div>
           </div>
@@ -297,7 +296,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
             }`}
           >
             <Server className="w-4 h-4" />
-            <span>Servidor IPTV Maestro & Protección</span>
+            <span>Servidor / URL M3U IPTV</span>
           </button>
         </div>
 
@@ -466,45 +465,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
           </div>
         )}
 
-        {/* TAB 2: UPSTREAM MASTER IPTV SETTINGS */}
+        {/* TAB 2: UPSTREAM MASTER IPTV / M3U URL SETTINGS */}
         {activeTab === 'upstream' && (
           <div className="p-6 flex-1 overflow-y-auto space-y-6">
             <div className="bg-[#181818] border border-neutral-800 rounded-2xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                   <Server className="w-4 h-4 text-[#00ff66]" />
-                  <span>Credenciales del Servidor IPTV Maestro</span>
+                  <span>Configuración de Servidor Xtream o URL M3U Directa</span>
                 </h3>
-                <button
-                  type="button"
-                  onClick={handleTestConnection}
-                  disabled={isTestingUpstream}
-                  className="px-3.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-xs font-semibold text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingUpstream ? 'animate-spin' : ''}`} />
-                  <span>Probar Conexión</span>
-                </button>
               </div>
 
-              {testResult && (
-                <div className="mb-4 p-3.5 rounded-xl text-xs border bg-emerald-950/40 border-emerald-500/50 text-emerald-200">
-                  <div className="font-bold mb-1 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-[#00ff66]" />
-                    <span>Conexión exitosa con el servidor IPTV.</span>
-                  </div>
-                </div>
-              )}
+              <div className="mb-4 p-3.5 rounded-xl bg-[#00ff66]/10 border border-[#00ff66]/30 text-xs text-neutral-300">
+                💡 <span className="text-white font-bold">Consejo:</span> Podés colocar la URL completa de tu archivo `.m3u` o enlace de lista en el campo de servidor. La aplicación cargará automáticamente los canales para reproducirlos al instante.
+              </div>
 
               <form onSubmit={handleSaveUpstream} className="space-y-4">
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
-                    URL del Servidor IPTV (Host y Puerto)
+                    URL del Servidor IPTV o Enlace de Lista M3U
                   </label>
                   <input
                     type="text"
                     value={upServerUrl}
                     onChange={(e) => setUpServerUrl(e.target.value)}
-                    placeholder="http://smarterstv99.dyndns.tv:25461"
+                    placeholder="https://... o http://servidor:puerto"
                     className="w-full bg-[#1e1e1e] text-white px-4 py-3 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-xs font-mono"
                     required
                   />
@@ -513,21 +498,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
-                      Usuario Maestro
+                      Usuario (Opcional para M3U)
                     </label>
                     <input
                       type="text"
                       value={upUsername}
                       onChange={(e) => setUpUsername(e.target.value)}
-                      placeholder="BTVCOL"
+                      placeholder="Usuario"
                       className="w-full bg-[#1e1e1e] text-white px-4 py-3 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-sm font-mono"
-                      required
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
-                      Contraseña Maestra
+                      Contraseña (Opcional para M3U)
                     </label>
                     <div className="relative">
                       <input
@@ -536,7 +520,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
                         onChange={(e) => setUpPassword(e.target.value)}
                         placeholder="••••••••"
                         className="w-full bg-[#1e1e1e] text-white pl-4 pr-11 py-3 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-sm font-mono"
-                        required
                       />
                       <button
                         type="button"
