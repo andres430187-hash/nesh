@@ -32,6 +32,9 @@ const REAL_SERVER = 'http://bstv.online:8080';
 const REAL_USER = '68moct01';
 const REAL_PASS = '9846871h';
 
+// NUEVO PROXY ESTABLE PARA EVITAR EL ERROR 403
+const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+
 export const xtreamApi = {
   async login({
     username,
@@ -128,7 +131,7 @@ export const xtreamApi = {
         : 'get_series_categories';
 
     const targetUrl = `http://bstv.online:8080/player_api.php?username=68moct01&password=9846871h&action=${action}`;
-    const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
 
     try {
       const res = await fetch(url);
@@ -147,7 +150,6 @@ export const xtreamApi = {
       console.error('Error cargando categorías:', e);
     }
 
-    // Categoría de respaldo para que jamás devuelva 0 y muestre los canales directos
     return [
       { category_id: 'all', category_name: 'Todos los canales', type }
     ];
@@ -171,7 +173,7 @@ export const xtreamApi = {
       targetUrl += `&category_id=${encodeURIComponent(categoryId)}`;
     }
 
-    const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
 
     try {
       const res = await fetch(url);
@@ -197,7 +199,7 @@ export const xtreamApi = {
   async getSeriesInfo(user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
     const sId = String(seriesId);
     const targetUrl = `http://bstv.online:8080/player_api.php?username=68moct01&password=9846871h&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
-    const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
     
     try {
       const res = await fetch(url);
