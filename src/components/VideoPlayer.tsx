@@ -150,7 +150,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
   }, [onClose, onNext, onPrev, activeStream.type]);
 
-  // Motor de reproducción robusto para la lista M3U
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !currentStreamUrl) return;
@@ -164,14 +163,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
 
     const url = currentStreamUrl;
-    // Comprobamos si el stream requiere HLS o es compatible directo
     const isHlsStream = url.includes('.m3u8') || url.includes('.ts') || !url.match(/\.(mp4|mkv|webm|mov)$/i);
 
     if (isHlsStream && Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
-        backBufferLength: 60,
       });
 
       hlsRef.current = hls;
@@ -182,25 +179,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         video.play().then(() => {
           setIsPlaying(true);
           setIsLoading(false);
-        }).catch((err) => {
-          console.warn('Autoplay bloqueado o fallido:', err);
+        }).catch(() => {
           setIsPlaying(false);
           setIsLoading(false);
         });
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        console.warn('HLS Error details:', data);
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              setError('Error de red al conectar con el canal. Verifica tu conexión.');
+              setError('Error de red al conectar con el canal.');
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               hls.recoverMediaError();
               break;
             default:
-              // Si falla HLS, intentamos volcar la URL directo al elemento video por si acaso
               video.src = url;
               video.load();
               video.play().then(() => {
@@ -216,7 +210,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }
       });
     } else {
-      // Reproducción directa estándar (MP4, enlaces directos, etc.)
       video.src = url;
       video.load();
       video.play().then(() => {
@@ -225,7 +218,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }).catch(() => {
         setIsPlaying(false);
         setIsLoading(false);
-        setError('El navegador bloqueó la reproducción automática o el formato no es compatible.');
+        setError('El formato no es compatible o el navegador bloqueó la reproducción.');
       });
     }
 
