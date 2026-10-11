@@ -44,17 +44,76 @@ export const xtreamApi = {
     password: string;
     serverUrl?: string;
   }): Promise<NeshUser> {
-    const cleanUser = (username || '68moct01').trim();
-    const cleanPass = (password || '9846871h').trim();
+    const cleanUser = (username || '').trim();
+    const cleanPass = (password || '').trim();
     const cleanServer = normalizeUrl(serverUrl || 'http://bstv.online:8080');
 
-    // Forzar acceso directo con las credenciales de tu URL exacta
+    if (!cleanUser || !cleanPass) {
+      throw new XtreamApiException('Por favor ingresa usuario y contraseña');
+    }
+
+    // 1. Verificar si es el admin maestro
+    if (cleanUser === 'admin' && cleanPass === 'admin2026') {
+      const adminUser: NeshUser = {
+        username: 'admin',
+        password: cleanPass,
+        serverUrl: cleanServer,
+        status: 'Active',
+        expiryDate: '2030-12-31 23:59:59',
+        maxConnections: 10,
+        activeCons: 1,
+        isDemo: false,
+        role: 'admin',
+      };
+      xtreamApi.saveAccount(adminUser);
+      return adminUser;
+    }
+
+    // 2. Buscar en los usuarios administrados creados desde la app
+    let managedUsers: ManagedUser[] = [];
+    try {
+      const data = localStorage.getItem('nesh_managed_users');
+      if (data) {
+        managedUsers = JSON.parse(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    // Si no hay usuarios creados todavía, agregamos por defecto el de prueba tuyo
+    if (managedUsers.length === 0) {
+      managedUsers = [
+        {
+          id: '1',
+          username: '68moct01',
+          password: '9846871h',
+          name: 'Cuenta Principal',
+          status: 'active',
+          expiryDate: '2026-12-31',
+          role: 'user',
+        }
+      ];
+    }
+
+    // Buscar coincidencia exacta de usuario y contraseña
+    const foundUser = managedUsers.find(
+      (u) => u.username === cleanUser && u.password === cleanPass
+    );
+
+    if (!foundUser) {
+      throw new XtreamApiException('Usuario o contraseña no registrados o incorrectos.');
+    }
+
+    if (foundUser.status !== 'active') {
+      throw new XtreamApiException('Esta cuenta se encuentra suspendida o inactiva.');
+    }
+
     const user: NeshUser = {
-      username: cleanUser,
-      password: cleanPass,
+      username: foundUser.username,
+      password: foundUser.password,
       serverUrl: cleanServer,
-      status: 'Active',
-      expiryDate: '2026-12-31 23:59:59',
+      status: foundUser.status,
+      expiryDate: foundUser.expiryDate || '2026-12-31 23:59:59',
       maxConnections: 5,
       activeCons: 1,
       isDemo: false,
@@ -140,7 +199,6 @@ export const xtreamApi = {
       console.error('Error cargando contenido remoto, usando respaldo:', e);
     }
 
-    // Respaldo inmediato para garantizar que aparezcan canales y películas siempre
     if (type === 'live') return DEMO_LIVE_STREAMS;
     if (type === 'vod') return DEMO_VOD_STREAMS;
     if (type === 'series') return DEMO_SERIES;
