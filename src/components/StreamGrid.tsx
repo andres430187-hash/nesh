@@ -1,328 +1,705 @@
-import React from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import Hls from 'hls.js';
 import {
   Play,
+  Pause,
+  ArrowLeft,
+  Volume2,
+  VolumeX,
+  Maximize,
+  Minimize,
+  PictureInPicture2,
   Tv,
-  Film,
-  Clapperboard,
+  SkipBack,
+  SkipForward,
   Heart,
-  Star,
-  Info,
-  Calendar,
-  Clock,
+  Settings,
+  Layers,
+  AlertTriangle,
 } from 'lucide-react';
-import {
-  NeshContentType,
-  NeshLiveStream,
-  NeshVodStream,
-  NeshSeries,
-} from '../types';
+import { NeshActiveStream } from '../types';
 
-interface StreamGridProps {
-  type: NeshContentType;
-  items: any[];
-  onPlayLive: (item: NeshLiveStream) => void;
-  onOpenVod: (item: NeshVodStream) => void;
-  onOpenSeries: (item: NeshSeries) => void;
-  favorites: string[];
-  onToggleFavorite: (id: string | number) => void;
-  isLoading: boolean;
+interface VideoPlayerProps {
+  activeStream: NeshActiveStream;
+  onClose: () => void;
+  onNext?: () => void;
+  onPrev?: () => void;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+  relatedStreams?: any[];
+  onSelectRelated?: (item: any) => void;
 }
 
-export const StreamGrid: React.FC<StreamGridProps> = ({
-  type,
-  items,
-  onPlayLive,
-  onOpenVod,
-  onOpenSeries,
-  favorites,
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({
+  activeStream,
+  onClose,
+  onNext,
+  onPrev,
+  isFavorite,
   onToggleFavorite,
-  isLoading,
+  relatedStreams = [],
+  onSelectRelated,
 }) => {
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <div
-            key={i}
-            className="bg-[#121212] border border-neutral-900 rounded-2xl aspect-[3/4] animate-pulse flex flex-col justify-end p-4"
-          >
-            <div className="h-4 bg-neutral-800 rounded w-3/4 mb-2" />
-            <div className="h-3 bg-neutral-850 rounded w-1/2" />
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
-  if (items.length === 0) {
-    return (
-      <div className="py-20 text-center flex flex-col items-center justify-center bg-[#121212]/50 border border-neutral-800/80 rounded-3xl p-8">
-        <div className="w-16 h-16 rounded-full bg-neutral-900 flex items-center justify-center text-neutral-600 mb-4 border border-neutral-800">
-          {type === 'live' ? (
-            <Tv className="w-8 h-8" />
-          ) : type === 'vod' ? (
-            <Film className="w-8 h-8" />
-          ) : (
-            <Clapperboard className="w-8 h-8" />
-          )}
-        </div>
-        <h3 className="text-lg font-bold text-white mb-1">No se encontraron resultados</h3>
-        <p className="text-sm text-neutral-400 max-w-sm">
-          Prueba cambiando la categoría seleccionada o ingresando un término de búsqueda diferente.
-        </p>
-      </div>
-    );
-  }
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [aspectRatio, setAspectRatio] = useState<'contain' | 'cover' | 'fill' | 'original'>('contain');
+  const [useProxy, setUseProxy] = useState(false);
+  const [showQuickList, setShowQuickList] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Determine current active URL
+  const currentStreamUrl = useProxy && activeStream.proxyStreamUrl
+    ? activeStream.proxyStreamUrl
+    : activeStream.streamUrl;
+
+  const resetControlsTimeout = useCallback(() => {
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    controlsTimeoutRef.current = setTimeout(() => {
+      if (isPlaying) {
+        setShowControls(false);
+        setShowSettings(false);
+      }
+    }, 4000);
+  }, [isPlaying]);
+
+  // Android Back button, Smart TV remote control, and Screen Wake Lock
+  useEffect(() => {
+    window.history.pushState({ playerOpen: true }, '');
+    const handlePopState = () => {
+      onClose();
+    };
+    window.addEventListener('popstate', handlePopState);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key) {
+        case 'Escape':
+        case 'Backspace':
+          e.preventDefault();
+          onClose();
+          break;
+        case ' ':
+        case 'Enter':
+          e.preventDefault();
+          handlePlayPause();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (videoRef.current && activeStream.type !== 'live') {
+            videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+          } else if (onPrev) {
+            onPrev();
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (videoRef.current && activeStream.type !== 'live') {
+            videoRef.current.currentTime = Math.min(videoRef.current.duration || 0, videoRef.current.currentTime + 10);
+          } else if (onNext) {
+            onNext();
+          }
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          if (videoRef.current) {
+            const newVol = Math.min(1, (videoRef.current.volume || 0) + 0.1);
+            videoRef.current.volume = newVol;
+            setVolume(newVol);
+            setIsMuted(false);
+          }
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          if (videoRef.current) {
+            const newVol = Math.max(0, (videoRef.current.volume || 0) - 0.1);
+            videoRef.current.volume = newVol;
+            setVolume(newVol);
+            setIsMuted(newVol === 0);
+          }
+          break;
+        case 'f':
+        case 'F':
+          e.preventDefault();
+          handleToggleFullscreen();
+          break;
+        case 'm':
+        case 'M':
+          e.preventDefault();
+          handleToggleMute();
+          break;
+      }
+      resetControlsTimeout();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    let wakeLockSentinel: any = null;
+    if ('wakeLock' in navigator) {
+      (navigator as any).wakeLock?.request('screen').then((lock: any) => {
+        wakeLockSentinel = lock;
+      }).catch(() => {});
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('keydown', handleKeyDown);
+      if (wakeLockSentinel) {
+        wakeLockSentinel.release().catch(() => {});
+      }
+    };
+  }, [onClose, onNext, onPrev, activeStream.type]);
+
+  // Load and play stream
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const url = currentStreamUrl;
+    const isHls = url.includes('.m3u8') || url.includes('/live/') || activeStream.type === 'live';
+
+    if (isHls && Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 90,
+      });
+
+      hlsRef.current = hls;
+      hls.loadSource(url);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {
+          setIsPlaying(false);
+        });
+        setIsLoading(false);
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        console.warn('HLS Event Error:', data);
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              // Si falla la red, activamos automáticamente el proxy de video sin esperar al usuario
+              if (!useProxy) {
+                console.log('Cambiando automáticamente a modo proxy seguro para streaming...');
+                setUseProxy(true);
+                return;
+              }
+              setError('Error de conexión con el flujo de video. Comprueba tu red.');
+              hls.destroy();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              setError('No se pudo reproducir este formato de transmisión.');
+              hls.destroy();
+              break;
+          }
+          setIsLoading(false);
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl') || !isHls) {
+      video.src = url;
+      video
+        .play()
+        .then(() => {
+          setIsLoading(false);
+        })
+        .catch(() => {
+          setIsPlaying(false);
+          setIsLoading(false);
+        });
+    } else {
+      setError('Formato no soportado por este navegador.');
+      setIsLoading(false);
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [currentStreamUrl, activeStream, useProxy]);
+
+  const onTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    setCurrentTime(video.currentTime);
+    setDuration(video.duration || 0);
+
+    if (video.buffered.length > 0) {
+      setBuffered(video.buffered.end(video.buffered.length - 1));
+    }
+  };
+
+  const handlePlayPause = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().then(() => setIsPlaying(true)).catch(console.error);
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+    resetControlsTimeout();
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const video = videoRef.current;
+    if (!video) return;
+    const time = parseFloat(e.target.value);
+    video.currentTime = time;
+    setCurrentTime(time);
+    resetControlsTimeout();
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const video = videoRef.current;
+    if (!video) return;
+    const val = parseFloat(e.target.value);
+    video.volume = val;
+    setVolume(val);
+    setIsMuted(val === 0);
+  };
+
+  const handleToggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isMuted) {
+      video.muted = false;
+      setIsMuted(false);
+      video.volume = volume || 0.5;
+    } else {
+      video.muted = true;
+      setIsMuted(true);
+    }
+  };
+
+  const handleToggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(console.error);
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen().catch(console.error);
+      setIsFullscreen(false);
+    }
+  };
+
+  const handleTogglePip = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (document.pictureInPictureEnabled) {
+        await video.requestPictureInPicture();
+      }
+    } catch (e) {
+      console.warn('PiP not supported or failed', e);
+    }
+  };
+
+  const formatTime = (secs: number) => {
+    if (isNaN(secs) || !isFinite(secs)) return '00:00';
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = Math.floor(secs % 60);
+    if (h > 0) {
+      return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const isLive = activeStream.type === 'live' || isNaN(duration) || duration === 0 || !isFinite(duration);
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-      {items.map((item) => {
-        const id =
-          type === 'series'
-            ? item.series_id
-            : item.stream_id || item.num || item.name;
-        const sId = String(id);
-        const isFav = favorites.includes(sId);
+    <div
+      ref={containerRef}
+      onMouseMove={resetControlsTimeout}
+      onClick={resetControlsTimeout}
+      className="fixed inset-0 z-50 bg-black flex items-center justify-center select-none overflow-hidden"
+    >
+      <video
+        ref={videoRef}
+        onTimeUpdate={onTimeUpdate}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onWaiting={() => setIsLoading(true)}
+        onPlaying={() => setIsLoading(false)}
+        onClick={handlePlayPause}
+        playsInline
+        className={`w-full h-full cursor-pointer transition-all ${
+          aspectRatio === 'cover'
+            ? 'object-cover'
+            : aspectRatio === 'fill'
+            ? 'object-fill'
+            : 'object-contain'
+        }`}
+      />
 
-        // LIVE STREAM CARD
-        if (type === 'live') {
-          const liveItem = item as NeshLiveStream;
-          return (
-            <div
-              key={sId}
-              onClick={() => onPlayLive(liveItem)}
-              className="group relative bg-[#121212] hover:bg-[#1a1a1a] border border-neutral-800/80 hover:border-[#00ff66]/60 rounded-2xl p-3.5 flex flex-col justify-between transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,255,102,0.15)] cursor-pointer"
+      {isLoading && !error && (
+        <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
+          <div className="w-14 h-14 border-4 border-neutral-800 border-t-[#00ff66] rounded-full animate-spin shadow-[0_0_25px_rgba(0,255,102,0.4)]" />
+          <p className="mt-4 text-xs font-semibold tracking-wider text-[#00ff66] uppercase">
+            Cargando transmisión...
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-red-950/80 border border-red-500/50 flex items-center justify-center text-red-400 mb-4 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
+            <AlertTriangle className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">Error de reproducción</h3>
+          <p className="text-sm text-neutral-400 max-w-md mb-6">{error}</p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => {
+                setUseProxy(!useProxy);
+                setError(null);
+                setIsLoading(true);
+              }}
+              className="px-5 py-2.5 rounded-xl bg-[#00ff66] text-black font-bold text-sm tracking-wide shadow-[0_0_15px_rgba(0,255,102,0.3)] hover:bg-[#00cc52] transition-colors cursor-pointer"
             >
-              {/* Channel Logo / Icon Container */}
-              <div className="relative w-full aspect-video rounded-xl bg-black/60 flex items-center justify-center overflow-hidden mb-3 border border-neutral-900 group-hover:border-neutral-700 transition-colors">
-                {liveItem.stream_icon ? (
-                  <img
-                    src={liveItem.stream_icon}
-                    alt={liveItem.name}
-                    className="w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <Tv className="w-8 h-8 text-neutral-600 group-hover:text-[#00ff66] transition-colors" />
+              {useProxy ? 'Reintentar directo' : 'Intentar mediante proxy seguro'}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-sm transition-colors cursor-pointer"
+            >
+              Volver al catálogo
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`absolute inset-0 pointer-events-none flex flex-col justify-between transition-opacity duration-300 ${
+          showControls ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <div className="p-4 sm:p-6 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center justify-between pointer-events-auto">
+          <div className="flex items-center gap-4 min-w-0">
+            <button
+              onClick={onClose}
+              className="p-2.5 rounded-xl bg-black/60 hover:bg-neutral-800 border border-neutral-700/80 text-white transition-all hover:scale-105 cursor-pointer shadow-lg"
+              title="Volver"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="truncate">
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase font-extrabold tracking-wider px-2 py-0.5 rounded bg-[#00ff66]/20 border border-[#00ff66]/40 text-[#00ff66]">
+                  {activeStream.type === 'live' ? 'En Vivo' : activeStream.type === 'vod' ? 'Película' : 'Episodio'}
+                </span>
+                {activeStream.categoryName && (
+                  <span className="text-xs text-neutral-400 font-medium">
+                    {activeStream.categoryName}
+                  </span>
                 )}
-
-                {/* Live Badge */}
-                <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-600/90 text-[10px] font-bold text-white tracking-wider uppercase">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  <span>VIVO</span>
-                </div>
-
-                {/* Hover Play Overlay */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                  <div className="w-11 h-11 rounded-full bg-[#00ff66] text-black flex items-center justify-center shadow-[0_0_15px_rgba(0,255,102,0.5)] transform scale-90 group-hover:scale-100 transition-transform">
-                    <Play className="w-5 h-5 fill-black translate-x-0.5" />
-                  </div>
-                </div>
               </div>
+              <h2 className="text-base sm:text-lg font-bold text-white truncate drop-shadow mt-0.5">
+                {activeStream.title}
+              </h2>
+            </div>
+          </div>
 
-              {/* Title & Actions */}
-              <div className="flex items-start justify-between gap-2 mt-auto">
-                <div className="truncate flex-1">
-                  <h4 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-[#00ff66] transition-colors" title={liveItem.name}>
-                    {liveItem.name}
-                  </h4>
-                  <p className="text-[11px] text-neutral-500 truncate mt-0.5">
-                    Canal IPTV #{liveItem.stream_id}
-                  </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onToggleFavorite}
+              className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                isFavorite
+                  ? 'bg-rose-500/20 border-rose-500 text-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]'
+                  : 'bg-black/60 border-neutral-700/80 text-neutral-300 hover:text-white'
+              }`}
+              title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            >
+              <Heart className={`w-5 h-5 ${isFavorite ? 'fill-rose-500' : ''}`} />
+            </button>
+
+            {relatedStreams.length > 0 && (
+              <button
+                onClick={() => setShowQuickList(!showQuickList)}
+                className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                  showQuickList
+                    ? 'bg-[#00ff66] text-black border-[#00ff66]'
+                    : 'bg-black/60 border-neutral-700/80 text-neutral-300 hover:text-white'
+                }`}
+                title="Lista rápida de canales"
+              >
+                <Layers className="w-5 h-5" />
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                showSettings
+                  ? 'bg-[#00ff66] text-black border-[#00ff66]'
+                  : 'bg-black/60 border-neutral-700/80 text-neutral-300 hover:text-white'
+              }`}
+              title="Ajustes de video"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {!isPlaying && !isLoading && !error && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <button
+              onClick={handlePlayPause}
+              className="w-20 h-20 rounded-full bg-[#00ff66] text-black flex items-center justify-center shadow-[0_0_35px_rgba(0,255,102,0.6)] hover:scale-110 active:scale-95 transition-all pointer-events-auto cursor-pointer"
+            >
+              <Play className="w-10 h-10 fill-black translate-x-1" />
+            </button>
+          </div>
+        )}
+
+        {showSettings && (
+          <div className="absolute top-20 right-6 w-72 bg-[#121212]/95 border border-neutral-800 rounded-2xl p-4 shadow-2xl backdrop-blur-md pointer-events-auto z-20">
+            <h4 className="text-xs uppercase font-bold text-neutral-400 tracking-wider mb-3">
+              Ajustes de reproducción
+            </h4>
+            
+            <div className="mb-4">
+              <label className="text-xs text-neutral-300 block mb-2 font-medium">
+                Relación de aspecto:
+              </label>
+              <div className="grid grid-cols-3 gap-1.5 text-xs">
+                {(['contain', 'cover', 'fill'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setAspectRatio(mode)}
+                    className={`py-1.5 px-2 rounded-lg font-semibold transition-all cursor-pointer ${
+                      aspectRatio === mode
+                        ? 'bg-[#00ff66] text-black shadow-sm font-bold'
+                        : 'bg-[#1e1e1e] text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    {mode === 'contain' ? 'Auto' : mode === 'cover' ? 'Llenar' : 'Estirar'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-neutral-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-white block">Proxy Servidor</span>
+                  <span className="text-[10px] text-neutral-400">Bypass CORS / SSL</span>
                 </div>
-
-                {/* Favorite Heart Button */}
                 <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleFavorite(sId);
-                  }}
-                  className={`p-1.5 rounded-lg transition-colors shrink-0 ${
-                    isFav
-                      ? 'text-rose-500 bg-rose-500/10'
-                      : 'text-neutral-500 hover:text-white bg-neutral-900/60'
+                  onClick={() => setUseProxy(!useProxy)}
+                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                    useProxy ? 'bg-[#00ff66]' : 'bg-neutral-700'
                   }`}
-                  title={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
                 >
-                  <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-rose-500' : ''}`} />
+                  <span
+                    className={`absolute top-1 left-1 bg-black w-4 h-4 rounded-full transition-transform ${
+                      useProxy ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
                 </button>
               </div>
             </div>
-          );
-        }
+          </div>
+        )}
 
-        // VOD MOVIE CARD
-        if (type === 'vod') {
-          const vodItem = item as NeshVodStream;
-          return (
-            <div
-              key={sId}
-              onClick={() => onOpenVod(vodItem)}
-              className="group relative bg-[#121212] hover:bg-[#1a1a1a] border border-neutral-800/80 hover:border-[#00ff66]/60 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,255,102,0.2)] cursor-pointer flex flex-col"
-            >
-              {/* Poster Container */}
-              <div className="relative aspect-[2/3] w-full bg-neutral-950 overflow-hidden">
-                {vodItem.stream_icon ? (
-                  <img
-                    src={vodItem.stream_icon}
-                    alt={vodItem.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center text-neutral-600">
-                    <Film className="w-10 h-10 mb-2 group-hover:text-[#00ff66] transition-colors" />
-                    <span className="text-xs">{vodItem.name}</span>
-                  </div>
-                )}
-
-                {/* Rating Badge */}
-                {vodItem.rating && (
-                  <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md border border-neutral-700 text-[11px] font-bold text-amber-400">
-                    <Star className="w-3 h-3 fill-amber-400" />
-                    <span>{typeof vodItem.rating === 'number' ? vodItem.rating.toFixed(1) : vodItem.rating}</span>
-                  </div>
-                )}
-
-                {/* Favorite Heart Button */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleFavorite(sId);
+        <div className="p-4 sm:p-6 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-auto">
+          {!isLive && (
+            <div className="mb-4 flex items-center gap-3">
+              <span className="text-xs font-mono text-neutral-300 min-w-[45px]">
+                {formatTime(currentTime)}
+              </span>
+              <div className="relative flex-1 group py-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={duration || 100}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-[#00ff66] hover:h-2 transition-all"
+                  style={{
+                    background: `linear-gradient(to right, #00ff66 ${(currentTime / (duration || 1)) * 100}%, #262626 ${(currentTime / (duration || 1)) * 100}%)`,
                   }}
-                  className={`absolute top-2 right-2 p-1.5 rounded-lg backdrop-blur-md transition-colors ${
-                    isFav
-                      ? 'text-rose-500 bg-black/80'
-                      : 'text-neutral-300 hover:text-white bg-black/50'
-                  }`}
-                  title={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                >
-                  <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-500' : ''}`} />
-                </button>
-
-                {/* Hover Play Button */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                  <div className="w-12 h-12 rounded-full bg-[#00ff66] text-black flex items-center justify-center shadow-[0_0_20px_rgba(0,255,102,0.6)] transform scale-90 group-hover:scale-100 transition-transform">
-                    <Play className="w-6 h-6 fill-black translate-x-0.5" />
-                  </div>
-                </div>
+                />
               </div>
+              <span className="text-xs font-mono text-neutral-400 min-w-[45px]">
+                {formatTime(duration)}
+              </span>
+            </div>
+          )}
 
-              {/* Title & Info */}
-              <div className="p-3 flex-1 flex flex-col justify-between">
-                <div>
-                  <h4 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-[#00ff66] transition-colors" title={vodItem.name}>
-                    {vodItem.name}
-                  </h4>
-                  <div className="flex items-center gap-2 text-[11px] text-neutral-400 mt-1">
-                    {vodItem.release_date && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {vodItem.release_date.slice(0, 4)}
-                      </span>
-                    )}
-                    {vodItem.duration && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {vodItem.duration}
-                      </span>
-                    )}
-                  </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <button
+                onClick={handlePlayPause}
+                className="p-2.5 rounded-xl bg-[#00ff66] text-black hover:bg-[#00cc52] transition-transform hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(0,255,102,0.4)] cursor-pointer"
+                title={isPlaying ? 'Pausar' : 'Reproducir'}
+              >
+                {isPlaying ? <Pause className="w-5 h-5 fill-black" /> : <Play className="w-5 h-5 fill-black translate-x-0.5" />}
+              </button>
+
+              {onPrev && (
+                <button
+                  onClick={onPrev}
+                  className="p-2 text-neutral-300 hover:text-white transition-colors cursor-pointer"
+                  title="Canal anterior"
+                >
+                  <SkipBack className="w-5 h-5" />
+                </button>
+              )}
+
+              {onNext && (
+                <button
+                  onClick={onNext}
+                  className="p-2 text-neutral-300 hover:text-white transition-colors cursor-pointer"
+                  title="Canal siguiente"
+                >
+                  <SkipForward className="w-5 h-5" />
+                </button>
+              )}
+
+              {isLive && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-600/30 border border-red-500/50 text-red-400 text-xs font-bold tracking-wider uppercase">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <span>TRANSMISIÓN EN VIVO</span>
                 </div>
+              )}
+
+              <div className="flex items-center gap-2 group">
+                <button
+                  onClick={handleToggleMute}
+                  className="p-2 text-neutral-300 hover:text-white transition-colors cursor-pointer"
+                  title={isMuted ? 'Activar sonido' : 'Silenciar'}
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-5 h-5 text-red-400" />
+                  ) : (
+                    <Volume2 className="w-5 h-5" />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  className="w-16 sm:w-24 h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-[#00ff66]"
+                />
               </div>
             </div>
-          );
-        }
 
-        // SERIES CARD
-        if (type === 'series') {
-          const seriesItem = item as NeshSeries;
-          return (
-            <div
-              key={sId}
-              onClick={() => onOpenSeries(seriesItem)}
-              className="group relative bg-[#121212] hover:bg-[#1a1a1a] border border-neutral-800/80 hover:border-[#00ff66]/60 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,255,102,0.2)] cursor-pointer flex flex-col"
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={handleTogglePip}
+                className="p-2.5 text-neutral-300 hover:text-white rounded-xl hover:bg-neutral-800 transition-colors cursor-pointer"
+                title="Picture-in-Picture"
+              >
+                <PictureInPicture2 className="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={handleToggleFullscreen}
+                className="p-2.5 text-neutral-300 hover:text-white rounded-xl hover:bg-neutral-800 transition-colors cursor-pointer"
+                title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              >
+                {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showQuickList && relatedStreams.length > 0 && (
+        <div className="absolute top-0 right-0 bottom-0 w-80 bg-black/95 border-l border-neutral-800 z-30 flex flex-col p-4 shadow-2xl backdrop-blur-md animate-in slide-in-from-right duration-200">
+          <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Tv className="w-4 h-4 text-[#00ff66]" />
+              <span>Guía rápida</span>
+            </h3>
+            <button
+              onClick={() => setShowQuickList(false)}
+              className="text-neutral-400 hover:text-white text-xs px-2 py-1 rounded bg-neutral-800"
             >
-              {/* Cover Container */}
-              <div className="relative aspect-[2/3] w-full bg-neutral-950 overflow-hidden">
-                {seriesItem.cover ? (
-                  <img
-                    src={seriesItem.cover}
-                    alt={seriesItem.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center text-neutral-600">
-                    <Clapperboard className="w-10 h-10 mb-2 group-hover:text-[#00ff66] transition-colors" />
-                    <span className="text-xs">{seriesItem.name}</span>
-                  </div>
-                )}
+              Cerrar
+            </button>
+          </div>
 
-                {/* Rating Badge */}
-                {seriesItem.rating && (
-                  <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md border border-neutral-700 text-[11px] font-bold text-amber-400">
-                    <Star className="w-3 h-3 fill-amber-400" />
-                    <span>{typeof seriesItem.rating === 'number' ? seriesItem.rating.toFixed(1) : seriesItem.rating}</span>
-                  </div>
-                )}
+          <div className="flex-1 overflow-y-auto mt-3 space-y-2 pr-1">
+            {relatedStreams.map((item, idx) => {
+              const itemId = String(item.stream_id || item.series_id || idx);
+              const isActive = String(activeStream.id) === itemId;
 
-                {/* Favorite Heart Button */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleFavorite(sId);
+              return (
+                <div
+                  key={itemId}
+                  onClick={() => {
+                    if (onSelectRelated) onSelectRelated(item);
                   }}
-                  className={`absolute top-2 right-2 p-1.5 rounded-lg backdrop-blur-md transition-colors ${
-                    isFav
-                      ? 'text-rose-500 bg-black/80'
-                      : 'text-neutral-300 hover:text-white bg-black/50'
+                  className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                    isActive
+                      ? 'bg-[#00ff66]/15 border-[#00ff66] text-white shadow-[0_0_12px_rgba(0,255,102,0.2)]'
+                      : 'bg-[#121212] border-neutral-800/80 hover:border-neutral-700 text-neutral-300 hover:text-white'
                   }`}
-                  title={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
                 >
-                  <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-500' : ''}`} />
-                </button>
-
-                {/* Hover Details Button */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                  <div className="px-4 py-2 rounded-xl bg-[#00ff66] text-black font-bold text-xs tracking-wider flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,255,102,0.5)] transform scale-90 group-hover:scale-100 transition-transform">
-                    <Info className="w-4 h-4" />
-                    <span>VER EPISODIOS</span>
+                  <div className="w-10 h-10 rounded-lg bg-neutral-900 flex items-center justify-center overflow-hidden shrink-0">
+                    {item.stream_icon || item.cover ? (
+                      <img
+                        src={item.stream_icon || item.cover}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Tv className={`w-4 h-4 ${isActive ? 'text-[#00ff66]' : 'text-neutral-500'}`} />
+                    )}
                   </div>
-                </div>
-              </div>
-
-              {/* Title & Genre */}
-              <div className="p-3 flex-1 flex flex-col justify-between">
-                <div>
-                  <h4 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-[#00ff66] transition-colors" title={seriesItem.name}>
-                    {seriesItem.name}
-                  </h4>
-                  {seriesItem.genre && (
-                    <p className="text-[11px] text-neutral-400 truncate mt-1">
-                      {seriesItem.genre}
-                    </p>
+                  <div className="truncate flex-1">
+                    <div className="text-xs font-semibold truncate">{item.name}</div>
+                    <div className="text-[10px] text-neutral-500">#{item.stream_id || idx + 1}</div>
+                  </div>
+                  {isActive && (
+                    <div className="w-2 h-2 rounded-full bg-[#00ff66] animate-pulse" />
                   )}
                 </div>
-              </div>
-            </div>
-          );
-        }
-
-        return null;
-      })}
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
