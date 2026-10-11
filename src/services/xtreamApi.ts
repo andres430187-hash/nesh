@@ -72,7 +72,7 @@ export const xtreamApi = {
       return adminUser;
     }
 
-    // 2. Buscar en los usuarios creados desde tu panel de administración de la app
+    // 2. Buscar en los usuarios administrados creados desde tu panel de administración de la app
     let managedUsers: ManagedUser[] = [];
     try {
       const data = localStorage.getItem('nesh_managed_users');
@@ -140,7 +140,7 @@ export const xtreamApi = {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
 
@@ -156,7 +156,7 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando categorías remotas, usando respaldo:', e);
+      console.error('Error cargando categorías remotas:', e);
     }
 
     return DEMO_CATEGORIES.filter((c) => c.type === type);
@@ -183,7 +183,7 @@ export const xtreamApi = {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
 
@@ -200,7 +200,7 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando contenido remoto, usando respaldo:', e);
+      console.error('Error cargando contenido remoto:', e);
     }
 
     if (type === 'live') return DEMO_LIVE_STREAMS;
