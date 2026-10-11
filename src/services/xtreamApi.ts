@@ -255,28 +255,20 @@ export const xtreamApi = {
   buildLiveStreamUrl(_user: NeshUser, streamId: string | number, extension = 'm3u8'): string {
     const settings = getDynamicSettings();
     const rawUrl = `${settings.server}/live/${settings.username}/${settings.password}/${streamId}.${extension}`;
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-      return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
-    }
-    return rawUrl;
+    // Proxy web seguro forzado para el streaming
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
   },
 
   buildVodStreamUrl(_user: NeshUser, streamId: string | number, extension = 'mp4'): string {
     const settings = getDynamicSettings();
     const rawUrl = `${settings.server}/movie/${settings.username}/${settings.password}/${streamId}.${extension}`;
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-      return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
-    }
-    return rawUrl;
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
   },
 
   buildSeriesEpisodeUrl(_user: NeshUser, episodeId: string | number, extension = 'mp4'): string {
     const settings = getDynamicSettings();
     const rawUrl = `${settings.server}/series/${settings.username}/${settings.password}/${episodeId}.${extension}`;
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-      return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
-    }
-    return rawUrl;
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
   },
 
   getProxyStreamUrl(streamUrl: string): string {
