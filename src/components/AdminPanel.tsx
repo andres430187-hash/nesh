@@ -200,7 +200,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
   };
 
   const handleCopyAccess = (u: ManagedUser) => {
-    const text = `📺 Acceso a tu cuenta NesTV IPTV:\n👤 Usuario: ${u.username}\n🔑 Contraseña: ${u.password}\n📅 Vencimiento: ${u.expiryDate}\n🔗 Ingresa en: ${window.location.origin}`;
+    const text = 'Acceso a tu cuenta NesTV IPTV: Usuario: ' + u.username + ' | Contraseña: ' + u.password + ' | Vencimiento: ' + u.expiryDate;
     navigator.clipboard.writeText(text);
     setCopiedId(u.id);
     setTimeout(() => setCopiedId(null), 2500);
@@ -464,7 +464,69 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
 
         {/* TAB 2: UPSTREAM MASTER IPTV SETTINGS */}
         {activeTab === 'upstream' && (
-          <div className="p-6
-    </div>
-  );
-};
+          <div className="p-6 flex-1 overflow-y-auto space-y-6">
+            <div className="bg-[#181818] border border-neutral-800 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Server className="w-4 h-4 text-[#00ff66]" />
+                  <span>Credenciales del Servidor IPTV Maestro</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={isTestingUpstream}
+                  className="px-3.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-xs font-semibold text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingUpstream ? 'animate-spin' : ''}`} />
+                  <span>Probar Conexión</span>
+                </button>
+              </div>
+
+              {testResult && (
+                <div className="mb-4 p-3.5 rounded-xl text-xs border bg-emerald-950/40 border-emerald-500/50 text-emerald-200">
+                  <div className="font-bold mb-1 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#00ff66]" />
+                    <span>Conexión exitosa con el servidor IPTV.</span>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveUpstream} className="space-y-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
+                    URL del Servidor IPTV (Host y Puerto)
+                  </label>
+                  <input
+                    type="text"
+                    value={upServerUrl}
+                    onChange={(e) => setUpServerUrl(e.target.value)}
+                    placeholder="http://smarterstv99.dyndns.tv:25461"
+                    className="w-full bg-[#1e1e1e] text-white px-4 py-3 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-xs font-mono"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
+                      Usuario Maestro
+                    </label>
+                    <input
+                      type="text"
+                      value={upUsername}
+                      onChange={(e) => setUpUsername(e.target.value)}
+                      placeholder="BTVCOL"
+                      className="w-full bg-[#1e1e1e] text-white px-4 py-3 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-sm font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
+                      Contraseña Maestra
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showUpPassword ? 'text' : 'password'}
+                        value={upPassword}
+                        onChange={(
