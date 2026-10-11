@@ -32,6 +32,9 @@ const REAL_SERVER = 'http://bstv.online:8080';
 const REAL_USER = '68moct01';
 const REAL_PASS = '9846871h';
 
+// PROXY CORS PARA EVITAR EL BLOQUEO DE MIXED CONTENT EN NAVEGADORES (Render HTTPS -> IPTV HTTP)
+const PROXY_URL = 'https://corsproxy.io/?';
+
 export const xtreamApi = {
   async login({
     username,
@@ -129,7 +132,8 @@ export const xtreamApi = {
         ? 'get_vod_categories'
         : 'get_series_categories';
 
-    const url = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=${action}`;
+    const targetUrl = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=${action}`;
+    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
 
     try {
       const res = await fetch(url);
@@ -145,7 +149,7 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando categorías reales:', e);
+      console.error('Error cargando categorías reales con proxy:', e);
     }
 
     return [];
@@ -164,11 +168,13 @@ export const xtreamApi = {
         ? 'get_vod_streams'
         : 'get_series';
 
-    let url = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=${action}`;
+    let targetUrl = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=${action}`;
 
     if (categoryId && categoryId !== 'all') {
-      url += `&category_id=${encodeURIComponent(categoryId)}`;
+      targetUrl += `&category_id=${encodeURIComponent(categoryId)}`;
     }
+
+    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
 
     try {
       const res = await fetch(url);
@@ -185,7 +191,7 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando contenido real:', e);
+      console.error('Error cargando contenido real con proxy:', e);
     }
 
     return [];
@@ -194,7 +200,8 @@ export const xtreamApi = {
   async getSeriesInfo(user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
     const sId = String(seriesId);
     const sUrl = normalizeUrl(REAL_SERVER);
-    const url = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
+    const targetUrl = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
+    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
     
     try {
       const res = await fetch(url);
