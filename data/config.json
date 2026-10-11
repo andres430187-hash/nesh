@@ -1,0 +1,53 @@
+{
+  "upstream": {
+    "serverUrl": "http://bstv.online:8080",
+    "username": "68moct01",
+    "password": "9846871h"
+  },
+  "users": [
+    {
+      "id": "admin-1",
+      "username": "admin",
+      "password": "admin2026",
+      "name": "Administrador (Tú)",
+      "role": "admin",
+      "status": "active",
+      "expiryDate": "2030-12-31",
+      "createdAt": "2025-01-01",
+      "notes": "Cuenta principal de control"
+    },
+    {
+      "id": "user-1",
+      "username": "cliente1",
+      "password": "tv1234",
+      "name": "Cliente de Prueba 1",
+      "role": "user",
+      "status": "active",
+      "expiryDate": "2026-12-31",
+      "createdAt": "2025-01-01",
+      "notes": "Cliente activo"
+    },
+    {
+      "id": "user-2",
+      "username": "cliente2",
+      "password": "tv5678",
+      "name": "Cliente de Prueba 2",
+      "role": "user",
+      "status": "active",
+      "expiryDate": "2026-12-31",
+      "createdAt": "2025-01-01",
+      "notes": "Cliente activo"
+    },
+    {
+      "id": "demo-1",
+      "username": "demo",
+      "password": "demo",
+      "name": "Acceso Demo",
+      "role": "user",
+      "status": "active",
+      "expiryDate": "2030-12-31",
+      "createdAt": "2025-01-01",
+      "notes": "Usuario de demostración"
+    }
+  ]
+}

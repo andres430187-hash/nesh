@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --neon: #00ff66;
+    --neon-dim: #00cc52;
+    --neon-glow: rgba(0, 255, 102, 0.25);
+    --surface: #121212;
+    --surface-alt: #1e1e1e;
+    --background: #000000;
+  }
+
+  html {
+    /* Prevent mobile pull-to-refresh so it behaves like native APK */
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: #000000;
+    color: #ffffff;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    /* Safe area insets for Android notches and navigation bars */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Remote control / D-Pad focus styles for Android TV and Fire TV */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid #00ff66 !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 15px rgba(0, 255, 102, 0.5) !important;
+  }
+}
+
+/* Neon glow utilities */
+.neon-glow {
+  box-shadow: 0 0 25px rgba(0, 255, 102, 0.35);
+}
+
+.neon-glow-sm {
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.25);
+}
+
+.neon-glow-lg {
+  box-shadow: 0 0 45px rgba(0, 255, 102, 0.45);
+}
+
+.neon-text-glow {
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.6);
+}
+
+/* Custom scrollbar for IPTV channel lists and grids */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #121212;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00ff66;
+}

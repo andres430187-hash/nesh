@@ -1,0 +1,8 @@
+{
+  "name": "NesTV (Nesh) - IPTV Player",
+  "description": "Cliente IPTV moderno y multiplataforma con estética oscura y verde flúor, compatible con paneles Xtream Codes API para TV en vivo, películas y series.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
