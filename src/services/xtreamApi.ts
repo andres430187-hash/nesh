@@ -44,66 +44,28 @@ export const xtreamApi = {
     password: string;
     serverUrl?: string;
   }): Promise<NeshUser> {
-    const cleanUser = (username || '').trim();
-    const cleanPass = (password || '').trim();
+    const cleanUser = (username || '68moct01').trim();
+    const cleanPass = (password || '9846871h').trim();
+    const cleanServer = normalizeUrl(serverUrl || 'http://bstv.online:8080');
 
-    if (cleanUser === 'admin' && cleanPass === 'admin2026') {
-      return {
-        username: '68moct01',
-        name: 'Administrador General',
-        role: 'admin',
-        status: 'Active',
-        expiryDate: '2030-12-31 23:59:59',
-        token: 'local_admin_token',
-        serverUrl: 'http://bstv.online:8080',
-        isDemo: false,
-      };
-    }
-
-    try {
-      const managed = localStorage.getItem('nesh_managed_users');
-      if (managed) {
-        const users: ManagedUser[] = JSON.parse(managed);
-        const found = users.find(u => u.username === cleanUser && u.password === cleanPass);
-        if (found) {
-          if (found.status === 'suspended') {
-            throw new XtreamApiException('Esta cuenta se encuentra suspendida.');
-          }
-          const localUser: NeshUser = {
-            username: found.username,
-            name: found.name || found.username,
-            role: found.role || 'user',
-            status: 'Active',
-            expiryDate: found.expiryDate ? `${found.expiryDate} 23:59:59` : '2026-12-31 23:59:59',
-            token: 'local_user_token',
-            serverUrl: 'http://bstv.online:8080',
-            isDemo: false,
-          };
-          xtreamApi.saveAccount(localUser);
-          return localUser;
-        }
-      }
-    } catch (err: any) {
-      if (err instanceof XtreamApiException) throw err;
-    }
-
-    const targetServer = serverUrl && serverUrl.trim() !== '' ? serverUrl : 'http://bstv.online:8080';
-    const cleanBase = normalizeUrl(targetServer);
-
-    const defaultUser: NeshUser = {
-      username: cleanUser || '68moct01',
-      password: cleanPass || '9846871h',
-      serverUrl: cleanBase,
+    // Forzar acceso directo con las credenciales de tu URL exacta
+    const user: NeshUser = {
+      username: cleanUser,
+      password: cleanPass,
+      serverUrl: cleanServer,
       status: 'Active',
       expiryDate: '2026-12-31 23:59:59',
+      maxConnections: 5,
+      activeCons: 1,
       isDemo: false,
     };
-    xtreamApi.saveAccount(defaultUser);
-    return defaultUser;
+
+    xtreamApi.saveAccount(user);
+    return user;
   },
 
   async getCategories(user: NeshUser, type: NeshContentType): Promise<NeshCategory[]> {
-    const sUrl = user.serverUrl || 'http://bstv.online:8080';
+    const sUrl = normalizeUrl(user.serverUrl || 'http://bstv.online:8080');
     const action =
       type === 'live'
         ? 'get_live_categories'
@@ -111,11 +73,11 @@ export const xtreamApi = {
         ? 'get_vod_categories'
         : 'get_series_categories';
 
-    const url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username || '68moct01')}&password=${encodeURIComponent(user.password || '9846871h')}&action=${action}`;
+    const url = `${sUrl}/player_api.php?username=${encodeURIComponent(user.username || '68moct01')}&password=${encodeURIComponent(user.password || '9846871h')}&action=${action}`;
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000); // Timeout rápido para evitar bloqueos
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
 
@@ -131,7 +93,7 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando categorías, usando respaldo:', e);
+      console.error('Error cargando categorías remotas, usando respaldo:', e);
     }
 
     return DEMO_CATEGORIES.filter((c) => c.type === type);
@@ -142,7 +104,7 @@ export const xtreamApi = {
     type: NeshContentType,
     categoryId?: string
   ): Promise<any[]> {
-    const sUrl = user.serverUrl || 'http://bstv.online:8080';
+    const sUrl = normalizeUrl(user.serverUrl || 'http://bstv.online:8080');
     const action =
       type === 'live'
         ? 'get_live_streams'
@@ -150,7 +112,7 @@ export const xtreamApi = {
         ? 'get_vod_streams'
         : 'get_series';
 
-    let url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username || '68moct01')}&password=${encodeURIComponent(user.password || '9846871h')}&action=${action}`;
+    let url = `${sUrl}/player_api.php?username=${encodeURIComponent(user.username || '68moct01')}&password=${encodeURIComponent(user.password || '9846871h')}&action=${action}`;
 
     if (categoryId && categoryId !== 'all') {
       url += `&category_id=${encodeURIComponent(categoryId)}`;
@@ -158,7 +120,7 @@ export const xtreamApi = {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
 
@@ -175,10 +137,10 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando contenido remoto, usando respaldo inmediato:', e);
+      console.error('Error cargando contenido remoto, usando respaldo:', e);
     }
 
-    // Respaldo inmediato garantizado según la pestaña activa para que nunca quede vacío
+    // Respaldo inmediato para garantizar que aparezcan canales y películas siempre
     if (type === 'live') return DEMO_LIVE_STREAMS;
     if (type === 'vod') return DEMO_VOD_STREAMS;
     if (type === 'series') return DEMO_SERIES;
@@ -188,8 +150,8 @@ export const xtreamApi = {
 
   async getSeriesInfo(user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
     const sId = String(seriesId);
-    const sUrl = user.serverUrl || 'http://bstv.online:8080';
-    const url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username || '68moct01')}&password=${encodeURIComponent(user.password || '9846871h')}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
+    const sUrl = normalizeUrl(user.serverUrl || 'http://bstv.online:8080');
+    const url = `${sUrl}/player_api.php?username=${encodeURIComponent(user.username || '68moct01')}&password=${encodeURIComponent(user.password || '9846871h')}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
     
     try {
       const res = await fetch(url);
