@@ -44,7 +44,7 @@ const getDynamicSettings = () => {
   } catch (e) {
     console.error(e);
   }
-  // Valores por defecto iniciales por si todavía no los cargaste en el panel
+  // Valores por defecto iniciales
   return {
     server: 'http://bstv.online:8080',
     username: '68moct01',
@@ -338,12 +338,16 @@ export const xtreamApi = {
     try {
       const res = await fetch(url);
       if (res.ok) {
-        return { connected: true, statusCode: '200', authStatus: 'OK' };
+        const data = await res.json();
+        // Comprobación real y estricta del servidor IPTV
+        if (data && data.user_info) {
+          return { connected: true, statusCode: '200', authStatus: 'OK' };
+        }
       }
     } catch (e) {
       console.error(e);
     }
-    return { connected: false, statusCode: '500', authStatus: 'ERROR' };
+    throw new XtreamApiException('No se pudo conectar con el servidor o los datos son incorrectos.');
   },
 
   getSavedAccounts(): SavedAccount[] {
