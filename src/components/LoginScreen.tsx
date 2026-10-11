@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import {
   Play,
-  Server,
   User as UserIcon,
   Lock,
   Eye,
   EyeOff,
   AlertCircle,
-  KeyRound,
 } from 'lucide-react';
 import { NeshUser } from '../types';
 import { xtreamApi, XtreamApiException } from '../services/xtreamApi';
@@ -17,8 +15,6 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
-  const [loginMode, setLoginMode] = useState<'direct' | 'xtream'>('xtream');
-  const [serverUrl, setServerUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -44,37 +40,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     setErrorMessage(null);
 
     try {
-      // Si usas el usuario de admin, entramos directo al panel de administración
-      if (u === 'admin' && p === 'admin2026') {
-        onLoginSuccess({
-          username: 'admin',
-          status: 'Active',
-          expiryDate: '2030-12-31 23:59:59',
-          isTrial: false,
-          maxConnections: 10,
-          activeCons: 1,
-          createdAt: '2025-01-01',
-          isDemo: false,
-          role: 'admin',
-        } as any);
-        return;
-      }
-
-      // LISTA BLANCA DE USUARIOS PERMITIDOS (Agregá acá los usuarios que vos vayas creando)
-      const usuariosPermitidos = ['cliente1', 'usuario_vip']; 
-
-      if (!usuariosPermitidos.includes(u)) {
-        setErrorMessage('Usuario no autorizado o no registrado por el administrador.');
-        setIsLoading(false);
-        return;
-      }
-
-      const targetServer = loginMode === 'xtream' ? serverUrl.trim() : '';
-
+      // Llama directamente al sistema seguro que valida con tus usuarios creados
       const user = await xtreamApi.login({
         username: u,
         password: p,
-        serverUrl: targetServer,
       });
 
       onLoginSuccess(user);
@@ -82,7 +51,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       if (err instanceof XtreamApiException) {
         setErrorMessage(err.message);
       } else {
-        setErrorMessage('No se pudo conectar con el servidor. Verifica las credenciales.');
+        setErrorMessage('Usuario o contraseña incorrectos.');
       }
     } finally {
       setIsLoading(false);
@@ -108,41 +77,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           </p>
         </div>
 
-        {/* Mode Selector Tabs */}
-        <div className="bg-[#121212] p-1.5 rounded-2xl border border-neutral-800 mb-4 flex gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMode('direct');
-              setErrorMessage(null);
-            }}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              loginMode === 'direct'
-                ? 'bg-[#00ff66] text-black shadow-[0_0_15px_rgba(0,255,102,0.35)]'
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60'
-            }`}
-          >
-            <KeyRound className="w-4 h-4" />
-            <span>Usuario y Contraseña</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMode('xtream');
-              setErrorMessage(null);
-            }}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              loginMode === 'xtream'
-                ? 'bg-[#00ff66] text-black shadow-[0_0_15px_rgba(0,255,102,0.35)]'
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60'
-            }`}
-          >
-            <Server className="w-4 h-4" />
-            <span>Servidor Xtream</span>
-          </button>
-        </div>
-
         {/* Error notification */}
         {errorMessage && (
           <div className="mb-4 p-3.5 rounded-xl bg-red-950/60 border border-red-500/50 text-red-200 text-xs sm:text-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -153,42 +87,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
         {/* Login Card */}
         <div className="bg-[#121212] border border-neutral-800/90 rounded-2xl p-6 sm:p-7 shadow-2xl backdrop-blur-md">
-          {loginMode === 'direct' ? (
-            <div className="mb-5 pb-4 border-b border-neutral-800">
-              <span className="text-xs font-bold text-white block">Acceso de Clientes</span>
-              <span className="text-[11px] text-neutral-400">Ingresa tus credenciales para acceder</span>
-            </div>
-          ) : (
-            <div className="mb-5 pb-4 border-b border-neutral-800">
-              <span className="text-xs font-bold text-white block">Panel Xtream Codes Privado</span>
-              <span className="text-[11px] text-neutral-400">Conecta la URL de tu proveedor IPTV</span>
-            </div>
-          )}
+          <div className="mb-5 pb-4 border-b border-neutral-800">
+            <span className="text-xs font-bold text-white block">Acceso de Clientes</span>
+            <span className="text-[11px] text-neutral-400">Ingresa tu usuario y contraseña asignados</span>
+          </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
-            {loginMode === 'xtream' && (
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
-                  URL del servidor IPTV
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#00ff66]">
-                    <Server className="w-5 h-5" />
-                  </div>
-                  <input
-                    type="text"
-                    value={serverUrl}
-                    onChange={(e) => setServerUrl(e.target.value)}
-                    placeholder="http://miservidor.com:8080"
-                    className="w-full bg-[#1e1e1e] text-white pl-11 pr-4 py-3 rounded-xl border border-transparent focus:border-[#00ff66] focus:ring-1 focus:ring-[#00ff66] outline-none text-sm transition-all placeholder:text-neutral-500 font-mono text-xs"
-                  />
-                </div>
-                <p className="text-[11px] text-neutral-500 mt-1 pl-1">
-                  Incluye el host y puerto proporcionado por tu servicio IPTV
-                </p>
-              </div>
-            )}
-
             <div>
               <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
                 Usuario
