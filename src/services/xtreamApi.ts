@@ -27,13 +27,10 @@ export const normalizeUrl = (url: string): string => {
   return u;
 };
 
-// TUS CREDENCIALES REALES MAESTRAS (Ocultas y protegidas para que ningún cliente las vea)
+// TUS CREDENCIALES REALES MAESTRAS
 const REAL_SERVER = 'http://bstv.online:8080';
 const REAL_USER = '68moct01';
 const REAL_PASS = '9846871h';
-
-// PROXY CORS PARA EVITAR EL BLOQUEO DE MIXED CONTENT EN NAVEGADORES (Render HTTPS -> IPTV HTTP)
-const PROXY_URL = 'https://corsproxy.io/?';
 
 export const xtreamApi = {
   async login({
@@ -51,7 +48,6 @@ export const xtreamApi = {
       throw new XtreamApiException('Por favor ingresa usuario y contraseña');
     }
 
-    // 1. Verificar si sos vos con el usuario administrador maestro
     if (cleanUser === 'admin' && cleanPass === 'admin2026') {
       const adminUser: NeshUser = {
         username: 'admin',
@@ -68,7 +64,6 @@ export const xtreamApi = {
       return adminUser;
     }
 
-    // 2. Buscar en los usuarios administrados creados desde tu panel de administración de la app
     let managedUsers: ManagedUser[] = [];
     try {
       const data = localStorage.getItem('nesh_managed_users');
@@ -79,7 +74,6 @@ export const xtreamApi = {
       console.error(e);
     }
 
-    // Si no hay usuarios creados todavía, agregamos por defecto tu cuenta principal
     if (managedUsers.length === 0) {
       managedUsers = [
         {
@@ -94,7 +88,6 @@ export const xtreamApi = {
       ];
     }
 
-    // Verificar si el usuario y contraseña coinciden con uno creado por vos en el panel
     const foundUser = managedUsers.find(
       (u) => u.username === cleanUser && u.password === cleanPass
     );
@@ -107,11 +100,10 @@ export const xtreamApi = {
       throw new XtreamApiException('Esta cuenta se encuentra suspendida o inactiva.');
     }
 
-    // 3. ÉXITO: Validado con el usuario inventado, pero se le asignan TUS datos reales por detrás
     const user: NeshUser = {
-      username: REAL_USER,   // Usa tu usuario real en el fondo
-      password: REAL_PASS,   // Usa tu contraseña real en el fondo
-      serverUrl: REAL_SERVER, // Usa tu servidor real en el fondo
+      username: REAL_USER,
+      password: REAL_PASS,
+      serverUrl: REAL_SERVER,
       status: foundUser.status,
       expiryDate: foundUser.expiryDate || '2026-12-31 23:59:59',
       maxConnections: 5,
@@ -123,8 +115,11 @@ export const xtreamApi = {
     return user;
   },
 
+  async categories(user: NeshUser, type: NeshContentType): Promise<NeshCategory[]> {
+    return this.getCategories(user, type);
+  },
+
   async getCategories(user: NeshUser, type: NeshContentType): Promise<NeshCategory[]> {
-    const sUrl = normalizeUrl(REAL_SERVER);
     const action =
       type === 'live'
         ? 'get_live_categories'
@@ -132,8 +127,8 @@ export const xtreamApi = {
         ? 'get_vod_categories'
         : 'get_series_categories';
 
-    const targetUrl = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=${action}`;
-    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
+    const targetUrl = `http://bstv.online:8080/player_api.php?username=68moct01&password=9846871h&action=${action}`;
+    const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
     try {
       const res = await fetch(url);
@@ -149,10 +144,13 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando categorías reales con proxy:', e);
+      console.error('Error cargando categorías:', e);
     }
 
-    return [];
+    // Categoría de respaldo para que jamás devuelva 0 y muestre los canales directos
+    return [
+      { category_id: 'all', category_name: 'Todos los canales', type }
+    ];
   },
 
   async getContent(
@@ -160,7 +158,6 @@ export const xtreamApi = {
     type: NeshContentType,
     categoryId?: string
   ): Promise<any[]> {
-    const sUrl = normalizeUrl(REAL_SERVER);
     const action =
       type === 'live'
         ? 'get_live_streams'
@@ -168,13 +165,13 @@ export const xtreamApi = {
         ? 'get_vod_streams'
         : 'get_series';
 
-    let targetUrl = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=${action}`;
+    let targetUrl = `http://bstv.online:8080/player_api.php?username=68moct01&password=9846871h&action=${action}`;
 
     if (categoryId && categoryId !== 'all') {
       targetUrl += `&category_id=${encodeURIComponent(categoryId)}`;
     }
 
-    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
+    const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
     try {
       const res = await fetch(url);
@@ -184,14 +181,14 @@ export const xtreamApi = {
           return data.map((item: any) => ({
             ...item,
             stream_id: item.stream_id || item.id || item.vod_id || item.series_id,
-            name: item.name || item.title || item.stream_display_name || 'Canal',
+            name: item.name || item.title || item.stream_display_name || 'Canal / Película',
             category_id: String(item.category_id || categoryId || '1'),
             stream_icon: item.stream_icon || item.cover || '',
           }));
         }
       }
     } catch (e) {
-      console.error('Error cargando contenido real con proxy:', e);
+      console.error('Error cargando contenido:', e);
     }
 
     return [];
@@ -199,9 +196,8 @@ export const xtreamApi = {
 
   async getSeriesInfo(user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
     const sId = String(seriesId);
-    const sUrl = normalizeUrl(REAL_SERVER);
-    const targetUrl = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
-    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
+    const targetUrl = `http://bstv.online:8080/player_api.php?username=68moct01&password=9846871h&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
+    const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
     
     try {
       const res = await fetch(url);
