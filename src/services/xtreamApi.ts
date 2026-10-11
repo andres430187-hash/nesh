@@ -10,13 +10,6 @@ import {
   ManagedUser,
   UpstreamSettings,
 } from '../types';
-import {
-  DEMO_CATEGORIES,
-  DEMO_LIVE_STREAMS,
-  DEMO_VOD_STREAMS,
-  DEMO_SERIES,
-  DEMO_SERIES_DETAILS,
-} from '../data/demoData';
 
 export class XtreamApiException extends Error {
   constructor(message: string) {
@@ -139,11 +132,7 @@ export const xtreamApi = {
     const url = `${sUrl}/player_api.php?username=${encodeURIComponent(REAL_USER)}&password=${encodeURIComponent(REAL_PASS)}&action=${action}`;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -156,10 +145,10 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando categorías remotas:', e);
+      console.error('Error cargando categorías reales:', e);
     }
 
-    return DEMO_CATEGORIES.filter((c) => c.type === type);
+    return [];
   },
 
   async getContent(
@@ -182,30 +171,22 @@ export const xtreamApi = {
     }
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           return data.map((item: any) => ({
             ...item,
             stream_id: item.stream_id || item.id || item.vod_id || item.series_id,
-            name: item.name || item.title || item.stream_display_name || 'Canal / Película',
+            name: item.name || item.title || item.stream_display_name || 'Canal',
             category_id: String(item.category_id || categoryId || '1'),
             stream_icon: item.stream_icon || item.cover || '',
           }));
         }
       }
     } catch (e) {
-      console.error('Error cargando contenido remoto:', e);
+      console.error('Error cargando contenido real:', e);
     }
-
-    if (type === 'live') return DEMO_LIVE_STREAMS;
-    if (type === 'vod') return DEMO_VOD_STREAMS;
-    if (type === 'series') return DEMO_SERIES;
 
     return [];
   },
@@ -227,18 +208,9 @@ export const xtreamApi = {
       console.error(e);
     }
 
-    return DEMO_SERIES_DETAILS[sId] || {
+    return {
       info: { name: 'Serie' },
-      episodes: {
-        '1': [
-          {
-            id: 'ep_1',
-            episode_num: 1,
-            title: 'Episodio 1',
-            container_extension: 'mp4',
-          },
-        ],
-      },
+      episodes: {},
     };
   },
 
