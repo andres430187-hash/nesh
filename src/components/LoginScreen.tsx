@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Play,
   Server,
@@ -6,15 +6,10 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Sparkles,
-  Tv,
-  Trash2,
-  ChevronRight,
   AlertCircle,
   KeyRound,
-  Check,
 } from 'lucide-react';
-import { NeshUser, SavedAccount } from '../types';
+import { NeshUser } from '../types';
 import { xtreamApi, XtreamApiException } from '../services/xtreamApi';
 
 interface LoginScreenProps {
@@ -22,7 +17,6 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
-  // Campos vacíos por seguridad para que no entren con datos predeterminados
   const [loginMode, setLoginMode] = useState<'direct' | 'xtream'>('xtream');
   const [serverUrl, setServerUrl] = useState('');
   const [username, setUsername] = useState('');
@@ -30,11 +24,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
-
-  useEffect(() => {
-    setSavedAccounts(xtreamApi.getSavedAccounts());
-  }, []);
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -72,7 +61,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       }
 
       // LISTA BLANCA DE USUARIOS PERMITIDOS (Agregá acá los usuarios que vos vayas creando)
-      const usuariosPermitidos = ['cliente1', 'usuario_vip']; // Modificá o agregá tus usuarios reales acá
+      const usuariosPermitidos = ['cliente1', 'usuario_vip']; 
 
       if (!usuariosPermitidos.includes(u)) {
         setErrorMessage('Usuario no autorizado o no registrado por el administrador.');
@@ -80,7 +69,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      // Si pasa la validación, intenta conectar normalmente con Xtream
       const targetServer = loginMode === 'xtream' ? serverUrl.trim() : '';
 
       const user = await xtreamApi.login({
@@ -99,18 +87,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleSelectSaved = (account: SavedAccount) => {
-    setServerUrl(account.serverUrl);
-    setUsername(account.username);
-    setLoginMode('xtream');
-  };
-
-  const handleDeleteSaved = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    xtreamApi.removeSavedAccount(id);
-    setSavedAccounts(xtreamApi.getSavedAccounts());
   };
 
   return (
@@ -190,7 +166,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">
-            {/* Server URL Input (Only in Xtream mode) */}
             {loginMode === 'xtream' && (
               <div>
                 <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
@@ -214,7 +189,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               </div>
             )}
 
-            {/* Username Input */}
             <div>
               <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
                 Usuario
@@ -234,7 +208,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               </div>
             </div>
 
-            {/* Password Input */}
             <div>
               <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1.5 font-semibold">
                 Contraseña
@@ -261,7 +234,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               </div>
             </div>
 
-            {/* Submit Button */}
             <div className="pt-2">
               <button
                 type="submit"
@@ -277,50 +249,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </div>
           </form>
         </div>
-
-        {/* Saved accounts / Quick profile switch */}
-        {savedAccounts.length > 0 && (
-          <div className="mt-5 bg-[#121212] border border-neutral-800/80 rounded-2xl p-4">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5 px-1 flex items-center justify-between">
-              <span>Cuentas guardadas</span>
-              <span className="text-[10px] text-neutral-500">{savedAccounts.length}</span>
-            </h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-              {savedAccounts.map((account) => (
-                <div
-                  key={account.id}
-                  onClick={() => handleSelectSaved(account)}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-[#1e1e1e] hover:bg-neutral-800 border border-neutral-800 hover:border-[#00ff66]/40 cursor-pointer transition-all group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-neutral-900 flex items-center justify-center text-[#00ff66] font-bold shrink-0">
-                      {account.username.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="truncate">
-                      <div className="text-sm font-medium text-white truncate group-hover:text-[#00ff66] transition-colors">
-                        {account.username}
-                      </div>
-                      <div className="text-[11px] text-neutral-400 truncate">
-                        {account.serverUrl}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteSaved(e, account.id)}
-                      className="p-1 text-neutral-500 hover:text-red-400 transition-colors"
-                      title="Eliminar de guardados"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                    <ChevronRight className="w-4 h-4 text-neutral-500 group-hover:text-[#00ff66] transition-transform group-hover:translate-x-0.5" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
