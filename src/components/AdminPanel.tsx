@@ -67,7 +67,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
   // Copied indicator
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Load data from localStorage for admin bypass
+  // Load data safely
   const loadLocalData = () => {
     setIsLoadingUsers(true);
     try {
@@ -85,16 +85,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
             expiryDate: '2030-12-31',
             role: 'admin',
             notes: 'Cuenta principal'
-          },
-          {
-            id: '2',
-            username: 'cliente1',
-            password: '123456',
-            name: 'Cliente Demo',
-            status: 'active',
-            expiryDate: '2026-12-31',
-            role: 'user',
-            notes: 'Prueba'
           }
         ];
         setUsers(initialUsers);
@@ -529,4 +519,165 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
                       <input
                         type={showUpPassword ? 'text' : 'password'}
                         value={upPassword}
-                        onChange={(
+                        onChange={(e) => setUpPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-[#1e1e1e] text-white pl-4 pr-11 py-3 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-sm font-mono"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowUpPassword(!showUpPassword)}
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-400 hover:text-white cursor-pointer"
+                      >
+                        {showUpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingUpstream}
+                    className="px-6 py-3 rounded-xl bg-[#00ff66] text-black font-extrabold text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_15px_rgba(0,255,102,0.3)] hover:bg-[#00cc52] transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingUpstream ? 'GUARDANDO...' : 'GUARDAR CONFIGURACIÓN'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* CREATE / EDIT USER MODAL */}
+      {showUserModal && (
+        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md bg-[#121212] border border-neutral-800 rounded-3xl p-6 shadow-2xl">
+            <button
+              onClick={() => setShowUserModal(false)}
+              className="absolute top-5 right-5 p-2 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-[#00ff66]" />
+              <span>{editingUserId ? 'Editar Cliente' : 'Crear Nuevo Cliente'}</span>
+            </h3>
+            <p className="text-xs text-neutral-400 mb-5">
+              Asigna los datos con los que este cliente iniciará sesión
+            </p>
+
+            <form onSubmit={handleSaveUser} className="space-y-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1 font-semibold">
+                  Nombre del Cliente
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="ej: Carlos Rodríguez"
+                  className="w-full bg-[#1e1e1e] text-white px-4 py-2.5 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1 font-semibold">
+                  Nombre de Usuario *
+                </label>
+                <input
+                  type="text"
+                  value={formUsername}
+                  onChange={(e) => setFormUsername(e.target.value)}
+                  placeholder="ej: carlos2026"
+                  className="w-full bg-[#1e1e1e] text-white px-4 py-2.5 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-sm font-mono"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1 font-semibold flex items-center justify-between">
+                  <span>Contraseña *</span>
+                  <button
+                    type="button"
+                    onClick={() => setFormPassword(Math.random().toString(36).substring(2, 8))}
+                    className="text-[10px] text-[#00ff66] hover:underline"
+                  >
+                    Generar aleatoria
+                  </button>
+                </label>
+                <input
+                  type="text"
+                  value={formPassword}
+                  onChange={(e) => setFormPassword(e.target.value)}
+                  placeholder="ej: tvpass77"
+                  className="w-full bg-[#1e1e1e] text-white px-4 py-2.5 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-sm font-mono"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1 font-semibold">
+                    Vencimiento
+                  </label>
+                  <input
+                    type="date"
+                    value={formExpiry}
+                    onChange={(e) => setFormExpiry(e.target.value)}
+                    className="w-full bg-[#1e1e1e] text-white px-3 py-2.5 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1 font-semibold">
+                    Estado
+                  </label>
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value as any)}
+                    className="w-full bg-[#1e1e1e] text-white px-3 py-2.5 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-xs"
+                  >
+                    <option value="active">Activo</option>
+                    <option value="suspended">Suspendido</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1 font-semibold">
+                  Notas internas (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="ej: Plan Familiar 6 meses"
+                  className="w-full bg-[#1e1e1e] text-white px-4 py-2.5 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-xs"
+                />
+              </div>
+
+              <div className="pt-3 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowUserModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-xs tracking-wider uppercase cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-xl bg-[#00ff66] text-black font-extrabold text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(0,255,102,0.3)] hover:bg-[#00cc52] cursor-pointer"
+                >
+                  {editingUserId ? 'Actualizar' : 'Crear Cuenta'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
