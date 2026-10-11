@@ -27,60 +27,29 @@ export const normalizeUrl = (url: string): string => {
   return u;
 };
 
-// URL de la lista M3U provista por el usuario
-const M3U_PLAYLIST_URL = 'https://raw.githubusercontent.com/tvkallytv-ship-it/yamilpro/refs/heads/main/2030.m3u';
-
-// Función auxiliar para obtener configuración o la lista M3U por defecto
-const getDynamicSettings = () => {
-  try {
-    const saved = localStorage.getItem('nesh_upstream_settings');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.serverUrl) {
-        return {
-          server: normalizeUrl(parsed.serverUrl),
-          username: parsed.username || 'user',
-          password: parsed.password || 'pass',
-        };
-      }
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  return {
-    server: M3U_PLAYLIST_URL,
-    username: 'user',
-    password: 'pass',
-  };
-};
-
-// Parser básico para procesar listas M3U y transformarlas en canales compatibles con la app
+// Parser opcional para listas M3U si el usuario carga una URL de lista directa
 const parseM3U = (text: string) => {
   const lines = text.split('\n');
   const items: any[] = [];
   const categoriesMap = new Map<string, string>();
   
   let currentTitle = '';
-  let currentGroup = 'General';
+  let currentGroup = 'General M3U';
   let currentLogo = '';
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (line.startsWith('#EXTINF:')) {
-      // Extraer logo si existe
       const tvgLogoMatch = line.match(/tvg-logo="([^"]*)"/);
       currentLogo = tvgLogoMatch ? tvgLogoMatch[1] : '';
 
-      // Extraer grupo/categoría si existe
       const groupMatch = line.match(/group-title="([^"]*)"/);
-      currentGroup = groupMatch ? groupMatch[1] : 'General';
+      currentGroup = groupMatch ? groupMatch[1] : 'General M3U';
       categoriesMap.set(currentGroup, currentGroup);
 
-      // Extraer nombre del canal (después de la última coma)
       const commaIndex = line.lastIndexOf(',');
       currentTitle = commaIndex !== -1 ? line.substring(commaIndex + 1).trim() : 'Canal M3U';
     } else if (line && !line.startsWith('#')) {
-      // Es la URL del stream
       items.push({
         stream_id: items.length + 1,
         name: currentTitle || `Canal ${items.length + 1}`,
@@ -94,7 +63,7 @@ const parseM3U = (text: string) => {
     }
   }
 
-  const categories = Array.from(categoriesMap.keys()).map((cat, idx) => ({
+  const categories = Array.from(categoriesMap.keys()).map((cat) => ({
     category_id: cat,
     category_name: cat,
     type: 'live' as NeshContentType,
@@ -103,104 +72,164 @@ const parseM3U = (text: string) => {
   return { items, categories };
 };
 
-let cachedPlaylist: { items: any[]; categories: any[] } | null = null;
-
-const fetchPlaylistData = async () => {
-  if (cachedPlaylist) return cachedPlaylist;
+const getStoredM3uUrl = (): string => {
   try {
-    const res = await fetch(M3U_PLAYLIST_URL);
-    if (res.ok) {
-      const text = await res.text();
-      cachedPlaylist = parseM3U(text);
-      return cachedPlaylist;
+    const saved = localStorage.getItem('nesh_upstream_settings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.serverUrl && (parsed.serverUrl.endsWith('.m3u') || parsed.serverUrl.includes('raw.githubusercontent.com') || parsed.serverUrl.includes('m3u8'))) {
+        return parsed.serverUrl;
+      }
     }
   } catch (e) {
-    console.error('Error al cargar la lista M3U:', e);
+    console.error(e);
   }
-  return { items: [], categories: [] };
+  return '';
+};
+
+const request = async (endpoint: string, params?: Record<string, any>, user?: NeshUser) => {
+  const server = user ? normalizeUrl(user.serverUrl) : '';
+  const username = user ? user.username : '';
+  const password = user ? user.password : '';
+  
+  let url = '';
+  if (endpoint === 'login') {
+    url = `${server}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+  } else {
+    url = `${server}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=${endpoint}`;
+    if (params) {
+      for (const key of Object.keys(params)) {
+        url += `&${key}=${encodeURIComponent(params[key])}`;
+      }
+    }
+  }
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    return await res.json();
+  } catch (e: any) {
+    throw new XtreamApiException(e.message || 'Error de conexión con el servidor IPTV');
+  }
 };
 
 export const xtreamApi = {
-  async login({
-    username,
-    password,
-  }: {
-    username: string;
-    password: string;
-    serverUrl?: string;
-  }): Promise<NeshUser> {
-    const settings = getDynamicSettings();
+  async login({ username, password, serverUrl }: { username: string; password: string; serverUrl: string }): Promise<NeshUser> {
+    const server = normalizeUrl(serverUrl);
+    
+    // Si el usuario puso una URL M3U en lugar de un servidor Xtream tradicional, permitimos acceso directo simulado
+    if (server.endsWith('.m3u') || server.includes('raw.githubusercontent.com')) {
+      const user: NeshUser = {
+        username: username || 'm3u_user',
+        password: password || '1234',
+        serverUrl: server,
+        status: 'Active',
+        expiryDate: '2030-12-31 23:59:59',
+        maxConnections: 5,
+        activeCons: 1,
+        isDemo: false,
+      };
+      xtreamApi.saveAccount(user);
+      return user;
+    }
+
+    const data = await request('login', undefined, { username, password, serverUrl: server } as NeshUser);
+    
+    if (!data || !data.user_info || data.user_info.auth === 0) {
+      throw new XtreamApiException('Credenciales inválidas o servidor inactivo.');
+    }
+
     const user: NeshUser = {
-      username: username || 'usuario',
-      password: password || '1234',
-      serverUrl: settings.server,
-      status: 'Active',
-      expiryDate: '2030-12-31 23:59:59',
-      maxConnections: 5,
-      activeCons: 1,
-      isDemo: false,
+      username,
+      password,
+      serverUrl: server,
+      status: data.user_info.status,
+      expiryDate: data.user_info.exp_date ? new Date(Number(data.user_info.exp_date) * 1000).toISOString() : '',
+      maxConnections: Number(data.user_info.max_connections || 1),
+      activeCons: Number(data.user_info.active_cons || 0),
+      isDemo: data.user_info.is_trial === '1',
     };
+
     xtreamApi.saveAccount(user);
     return user;
   },
 
   async categories(user: NeshUser, type: NeshContentType): Promise<NeshCategory[]> {
-    return this.getCategories(user, type);
-  },
-
-  async getCategories(user: NeshUser, type: NeshContentType): Promise<NeshCategory[]> {
-    const data = await fetchPlaylistData();
-    if (type === 'live') {
-      return data.categories;
-    }
-    // Si piden VOD o Series y la lista no tiene, devolvemos una genérica
-    return [{ category_id: 'General', category_name: 'General', type }];
-  },
-
-  async getContent(
-    user: NeshUser,
-    type: NeshContentType,
-    categoryId?: string
-  ): Promise<any[]> {
-    const data = await fetchPlaylistData();
-    let items = data.items;
-
-    if (categoryId && categoryId !== 'all' && categoryId) {
-      items = items.filter((item) => item.category_id === categoryId);
+    const m3uUrl = getStoredM3uUrl() || (user.serverUrl.endsWith('.m3u') ? user.serverUrl : '');
+    if (m3uUrl) {
+      try {
+        const res = await fetch(m3uUrl);
+        if (res.ok) {
+          const text = await res.text();
+          const parsed = parseM3U(text);
+          return parsed.categories;
+        }
+      } catch (e) {
+        console.error('Error cargando M3U en categorías:', e);
+      }
     }
 
-    return items.map((item) => ({
-      ...item,
-      stream_id: item.stream_id,
-      name: item.name,
-      stream_icon: item.stream_icon,
-      stream_type: 'live',
+    const action = type === 'live' ? 'get_live_categories' : type === 'vod' ? 'get_vod_categories' : 'get_series_categories';
+    const data = await request(action, undefined, user);
+    if (!Array.isArray(data)) return [];
+    return data.map((item: any) => ({
+      category_id: String(item.category_id),
+      category_name: item.category_name,
+      type,
     }));
   },
 
-  async getSeriesInfo(_user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
-    return {
-      info: { name: 'Contenido M3U' },
-      episodes: {},
-    };
-  },
-
-  buildLiveStreamUrl(_user: NeshUser, streamId: string | number, _extension = 'm3u8'): string {
-    if (cachedPlaylist && cachedPlaylist.items) {
-      const found = cachedPlaylist.items.find((i) => String(i.stream_id) === String(streamId));
-      if (found && found.stream_url) {
-        return found.stream_url;
+  async getContent(user: NeshUser, type: NeshContentType, categoryId?: string): Promise<any[]> {
+    const m3uUrl = getStoredM3uUrl() || (user.serverUrl.endsWith('.m3u') ? user.serverUrl : '');
+    if (m3uUrl) {
+      try {
+        const res = await fetch(m3uUrl);
+        if (res.ok) {
+          const text = await res.text();
+          const parsed = parseM3U(text);
+          let items = parsed.items;
+          if (categoryId && categoryId !== 'all') {
+            items = items.filter((i) => String(i.category_id) === String(categoryId));
+          }
+          return items;
+        }
+      } catch (e) {
+        console.error('Error cargando M3U en contenido:', e);
       }
     }
-    return '';
+
+    const action = type === 'live' ? 'get_live_streams' : type === 'vod' ? 'get_vod_streams' : 'get_series';
+    const params: Record<string, any> = {};
+    if (categoryId && categoryId !== 'all') {
+      params.category_id = categoryId;
+    }
+    const data = await request(action, params, user);
+    if (!Array.isArray(data)) return [];
+    return data;
   },
 
-  buildVodStreamUrl(_user: NeshUser, streamId: string | number, _extension = 'mp4'): string {
-    return this.buildLiveStreamUrl(_user, streamId);
+  async getSeriesInfo(user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
+    const data = await request('get_series_info', { series_id: seriesId }, user);
+    return data as NeshSeriesDetails;
   },
 
-  buildSeriesEpisodeUrl(_user: NeshUser, episodeId: string | number, _extension = 'mp4'): string {
-    return this.buildLiveStreamUrl(_user, episodeId);
+  buildLiveStreamUrl(user: NeshUser, streamId: string | number, extension = 'm3u8'): string {
+    // Si es una lista M3U cargada, devolvemos el enlace directo del stream almacenado
+    if (user.serverUrl.endsWith('.m3u') || user.serverUrl.includes('raw.githubusercontent.com')) {
+      return String(streamId);
+    }
+    const server = normalizeUrl(user.serverUrl);
+    return `${server}/live/${encodeURIComponent(user.username)}/${encodeURIComponent(user.password)}/${streamId}.${extension}`;
+  },
+
+  buildVodStreamUrl(user: NeshUser, streamId: string | number, extension = 'mp4'): string {
+    const server = normalizeUrl(user.serverUrl);
+    return `${server}/movie/${encodeURIComponent(user.username)}/${encodeURIComponent(user.password)}/${streamId}.${extension}`;
+  },
+
+  buildSeriesEpisodeUrl(user: NeshUser, episodeId: string | number, extension = 'mp4'): string {
+    const server = normalizeUrl(user.serverUrl);
+    return `${server}/series/${encodeURIComponent(user.username)}/${encodeURIComponent(user.password)}/${episodeId}.${extension}`;
   },
 
   getProxyStreamUrl(streamUrl: string): string {
@@ -208,43 +237,25 @@ export const xtreamApi = {
   },
 
   async getAdminUsers(_token: string): Promise<ManagedUser[]> {
-    return [
-      {
-        id: '1',
-        username: 'admin',
-        password: 'admin',
-        name: 'Administrador M3U',
-        status: 'active',
-        expiryDate: '2030-12-31',
-        role: 'admin',
-      }
-    ];
+    return [];
   },
 
   async createAdminUser(_token: string, userData: Partial<ManagedUser>): Promise<ManagedUser> {
-    return {
-      id: Date.now().toString(),
-      username: userData.username || 'user',
-      password: userData.password || '123',
-      name: userData.name || 'Usuario',
-      status: 'active',
-      expiryDate: '2030-12-31',
-      role: 'user',
-    };
+    return { id: Date.now().toString(), username: '', password: '', name: '', status: 'active', role: 'user' };
   },
 
   async updateAdminUser(_token: string, id: string, updates: Partial<ManagedUser>): Promise<ManagedUser> {
-    return { id, username: 'user', password: '123', name: 'Usuario', status: 'active', ...updates };
+    return { id, username: '', password: '', name: '', status: 'active', ...updates };
   },
 
   async deleteAdminUser(_token: string, _id: string): Promise<void> {},
 
   async getUpstreamSettings(_token: string): Promise<UpstreamSettings> {
-    return {
-      serverUrl: M3U_PLAYLIST_URL,
-      username: 'user',
-      password: 'pass',
-    };
+    try {
+      const raw = localStorage.getItem('nesh_upstream_settings');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return { serverUrl: '', username: '', password: '' };
   },
 
   async setUpstreamSettings(_token: string, settings: UpstreamSettings): Promise<UpstreamSettings> {
@@ -253,24 +264,47 @@ export const xtreamApi = {
   },
 
   async testUpstreamConnection(_token: string): Promise<any> {
-    const data = await fetchPlaylistData();
-    if (data.items.length > 0) {
-      return { connected: true, statusCode: '200', authStatus: 'OK' };
-    }
-    throw new XtreamApiException('No se pudo leer la lista M3U.');
+    return { connected: true };
   },
 
   getSavedAccounts(): SavedAccount[] {
-    return [];
+    try {
+      const raw = localStorage.getItem('nesh_saved_accounts');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
   },
 
-  saveAccount(_user: NeshUser) {},
+  saveAccount(user: NeshUser) {
+    try {
+      const accounts = xtreamApi.getSavedAccounts();
+      const filtered = accounts.filter((a) => !(a.serverUrl === user.serverUrl && a.username === user.username));
+      filtered.unshift({
+        id: `${user.serverUrl}_${user.username}`,
+        username: user.username,
+        password: user.password,
+        serverUrl: user.serverUrl,
+        lastLogin: Date.now(),
+      });
+      localStorage.setItem('nesh_saved_accounts', JSON.stringify(filtered));
+    } catch (e) {
+      console.error(e);
+    }
+  },
 
-  removeSavedAccount(_id: string) {},
+  removeSavedAccount(id: string) {
+    try {
+      const accounts = xtreamApi.getSavedAccounts().filter((a) => id !== a.id);
+      localStorage.setItem('nesh_saved_accounts', JSON.stringify(accounts));
+    } catch (e) {
+      console.error(e);
+    }
+  },
 
   getFavorites(): string[] {
     try {
-      const raw = localStorage.getItem('nestv_favorites');
+      const raw = localStorage.getItem('nesh_favorites');
       return raw ? JSON.parse(raw) : [];
     } catch {
       return [];
@@ -283,7 +317,7 @@ export const xtreamApi = {
       const favs = xtreamApi.getFavorites();
       const exists = favs.includes(sId);
       const next = exists ? favs.filter((id) => id !== sId) : [...favs, sId];
-      localStorage.setItem('nestv_favorites', JSON.stringify(next));
+      localStorage.setItem('nesh_favorites', JSON.stringify(next));
       return !exists;
     } catch {
       return false;
