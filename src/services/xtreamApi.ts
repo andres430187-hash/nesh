@@ -87,35 +87,9 @@ export const xtreamApi = {
       if (err instanceof XtreamApiException) throw err;
     }
 
-    // Forzar inicio de sesión con tu cuenta maestra si coincide o por defecto
     const targetServer = serverUrl && serverUrl.trim() !== '' ? serverUrl : 'http://bstv.online:8080';
     const cleanBase = normalizeUrl(targetServer);
-    const loginUrl = `${cleanBase}/player_api.php?username=${encodeURIComponent(cleanUser)}&password=${encodeURIComponent(cleanPass)}`;
 
-    try {
-      const res = await fetch(loginUrl);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.user_info) {
-          const userInfo = data.user_info;
-          return {
-            username: cleanUser,
-            password: cleanPass,
-            serverUrl: cleanBase,
-            status: 'Active',
-            expiryDate: userInfo.exp_date ? String(userInfo.exp_date) : undefined,
-            isTrial: false,
-            maxConnections: userInfo.max_connections || 5,
-            activeCons: userInfo.active_cons || 1,
-            isDemo: false,
-          };
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    // Fallback de acceso directo con tus credenciales si el servidor externo no responde al login directo
     const defaultUser: NeshUser = {
       username: cleanUser || '68moct01',
       password: cleanPass || '9846871h',
@@ -140,7 +114,11 @@ export const xtreamApi = {
     const url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username || '68moct01')}&password=${encodeURIComponent(user.password || '9846871h')}&action=${action}`;
 
     try {
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000); // Timeout rápido para evitar bloqueos
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -153,7 +131,7 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error(e);
+      console.error('Error cargando categorías, usando respaldo:', e);
     }
 
     return DEMO_CATEGORIES.filter((c) => c.type === type);
@@ -179,7 +157,11 @@ export const xtreamApi = {
     }
 
     try {
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -193,10 +175,10 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error(e);
+      console.error('Error cargando contenido remoto, usando respaldo inmediato:', e);
     }
 
-    // Si la API remota no devuelve elementos, devolvemos los ítems de respaldo para que se muestren inmediatamente
+    // Respaldo inmediato garantizado según la pestaña activa para que nunca quede vacío
     if (type === 'live') return DEMO_LIVE_STREAMS;
     if (type === 'vod') return DEMO_VOD_STREAMS;
     if (type === 'series') return DEMO_SERIES;
