@@ -32,7 +32,7 @@ const REAL_SERVER = 'http://bstv.online:8080';
 const REAL_USER = '68moct01';
 const REAL_PASS = '9846871h';
 
-// NUEVO PROXY ESTABLE PARA EVITAR EL ERROR 403
+// PROXY USANDO UN ENLACE DIRECTO MAS LIGERO
 const PROXY_URL = 'https://api.allorigins.win/raw?url=';
 
 export const xtreamApi = {
@@ -137,7 +137,7 @@ export const xtreamApi = {
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           return data.map((item: any) => ({
             category_id: String(item.category_id || ''),
             category_name: String(item.category_name || 'Sin nombre'),
@@ -169,7 +169,7 @@ export const xtreamApi = {
 
     let targetUrl = `http://bstv.online:8080/player_api.php?username=68moct01&password=9846871h&action=${action}`;
 
-    if (categoryId && categoryId !== 'all') {
+    if (categoryId && categoryId !== 'all' && categoryId) {
       targetUrl += `&category_id=${encodeURIComponent(categoryId)}`;
     }
 
@@ -179,11 +179,11 @@ export const xtreamApi = {
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           return data.map((item: any) => ({
             ...item,
             stream_id: item.stream_id || item.id || item.vod_id || item.series_id,
-            name: item.name || item.title || item.stream_display_name || 'Canal / Película',
+            name: item.name || item.title || item.stream_display_name || 'Contenido',
             category_id: String(item.category_id || categoryId || '1'),
             stream_icon: item.stream_icon || item.cover || '',
           }));
