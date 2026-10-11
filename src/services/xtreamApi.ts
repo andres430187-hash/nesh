@@ -27,13 +27,30 @@ export const normalizeUrl = (url: string): string => {
   return u;
 };
 
-// TUS CREDENCIALES REALES MAESTRAS
-const REAL_SERVER = 'http://bstv.online:8080';
-const REAL_USER = '68moct01';
-const REAL_PASS = '9846871h';
-
-// PROXY CORS
-const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+// Función auxiliar para obtener la configuración dinámica guardada en la app (Servidor, Usuario y Contraseña)
+const getDynamicSettings = () => {
+  try {
+    const saved = localStorage.getItem('nesh_upstream_settings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.serverUrl && parsed.username && parsed.password) {
+        return {
+          server: normalizeUrl(parsed.serverUrl),
+          username: parsed.username.trim(),
+          password: parsed.password.trim(),
+        };
+      }
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  // Valores por defecto iniciales por si todavía no los cargaste en el panel
+  return {
+    server: 'http://bstv.online:8080',
+    username: '68moct01',
+    password: '9846871h',
+  };
+};
 
 export const xtreamApi = {
   async login({
@@ -51,11 +68,14 @@ export const xtreamApi = {
       throw new XtreamApiException('Por favor ingresa usuario y contraseña');
     }
 
+    const settings = getDynamicSettings();
+
+    // 1. Verificar administrador maestro
     if (cleanUser === 'admin' && cleanPass === 'admin2026') {
       const adminUser: NeshUser = {
         username: 'admin',
         password: cleanPass,
-        serverUrl: REAL_SERVER,
+        serverUrl: settings.server,
         status: 'Active',
         expiryDate: '2030-12-31 23:59:59',
         maxConnections: 10,
@@ -67,6 +87,7 @@ export const xtreamApi = {
       return adminUser;
     }
 
+    // 2. Buscar en usuarios administrados
     let managedUsers: ManagedUser[] = [];
     try {
       const data = localStorage.getItem('nesh_managed_users');
@@ -81,8 +102,8 @@ export const xtreamApi = {
       managedUsers = [
         {
           id: '1',
-          username: REAL_USER,
-          password: REAL_PASS,
+          username: settings.username,
+          password: settings.password,
           name: 'Cuenta Principal',
           status: 'active',
           expiryDate: '2026-12-31',
@@ -104,9 +125,9 @@ export const xtreamApi = {
     }
 
     const user: NeshUser = {
-      username: REAL_USER,
-      password: REAL_PASS,
-      serverUrl: REAL_SERVER,
+      username: foundUser.username,
+      password: foundUser.password,
+      serverUrl: settings.server,
       status: foundUser.status,
       expiryDate: foundUser.expiryDate || '2026-12-31 23:59:59',
       maxConnections: 5,
@@ -123,6 +144,7 @@ export const xtreamApi = {
   },
 
   async getCategories(user: NeshUser, type: NeshContentType): Promise<NeshCategory[]> {
+    const settings = getDynamicSettings();
     const action =
       type === 'live'
         ? 'get_live_categories'
@@ -130,16 +152,10 @@ export const xtreamApi = {
         ? 'get_vod_categories'
         : 'get_series_categories';
 
-    const targetUrl = `http://bstv.online:8080/player_api.php?username=68moct01&password=9846871h&action=${action}`;
-    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
+    const url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}&action=${action}`;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos máx
-
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -152,12 +168,10 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando categorías:', e);
+      console.error('Error cargando categorías directas:', e);
     }
 
-    return [
-      { category_id: 'all', category_name: 'Todos los canales', type }
-    ];
+    return [];
   },
 
   async getContent(
@@ -165,6 +179,7 @@ export const xtreamApi = {
     type: NeshContentType,
     categoryId?: string
   ): Promise<any[]> {
+    const settings = getDynamicSettings();
     const action =
       type === 'live'
         ? 'get_live_streams'
@@ -172,27 +187,18 @@ export const xtreamApi = {
         ? 'get_vod_streams'
         : 'get_series';
 
-    let targetUrl = `http://bstv.online:8080/player_api.php?username=68moct01&password=9846871h&action=${action}`;
+    let url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}&action=${action}`;
 
     if (categoryId && categoryId !== 'all' && categoryId) {
-      targetUrl += `&category_id=${encodeURIComponent(categoryId)}`;
+      url += `&category_id=${encodeURIComponent(categoryId)}`;
     }
 
-    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
-
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 segundos máx
-
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          // Limitamos a 100 elementos si trae demasiados para que no colapse el navegador al renderizar
-          const slicedData = data.slice(0, 100);
-          return slicedData.map((item: any) => ({
+          return data.map((item: any) => ({
             ...item,
             stream_id: item.stream_id || item.id || item.vod_id || item.series_id,
             name: item.name || item.title || item.stream_display_name || 'Contenido',
@@ -202,16 +208,16 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando contenido:', e);
+      console.error('Error cargando contenido directo:', e);
     }
 
     return [];
   },
 
   async getSeriesInfo(user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
+    const settings = getDynamicSettings();
     const sId = String(seriesId);
-    const targetUrl = `http://bstv.online:8080/player_api.php?username=68moct01&password=9846871h&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
-    const url = `${PROXY_URL}${encodeURIComponent(targetUrl)}`;
+    const url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
     
     try {
       const res = await fetch(url);
@@ -232,15 +238,18 @@ export const xtreamApi = {
   },
 
   buildLiveStreamUrl(_user: NeshUser, streamId: string | number, extension = 'm3u8'): string {
-    return `${REAL_SERVER}/live/${REAL_USER}/${REAL_PASS}/${streamId}.${extension}`;
+    const settings = getDynamicSettings();
+    return `${settings.server}/live/${settings.username}/${settings.password}/${streamId}.${extension}`;
   },
 
   buildVodStreamUrl(_user: NeshUser, streamId: string | number, extension = 'mp4'): string {
-    return `${REAL_SERVER}/movie/${REAL_USER}/${REAL_PASS}/${streamId}.${extension}`;
+    const settings = getDynamicSettings();
+    return `${settings.server}/movie/${settings.username}/${settings.password}/${streamId}.${extension}`;
   },
 
   buildSeriesEpisodeUrl(_user: NeshUser, episodeId: string | number, extension = 'mp4'): string {
-    return `${REAL_SERVER}/series/${REAL_USER}/${REAL_PASS}/${episodeId}.${extension}`;
+    const settings = getDynamicSettings();
+    return `${settings.server}/series/${settings.username}/${settings.password}/${episodeId}.${extension}`;
   },
 
   getProxyStreamUrl(streamUrl: string): string {
@@ -254,11 +263,12 @@ export const xtreamApi = {
     } catch (e) {
       console.error(e);
     }
+    const settings = getDynamicSettings();
     return [
       {
         id: '1',
-        username: REAL_USER,
-        password: REAL_PASS,
+        username: settings.username,
+        password: settings.password,
         name: 'Administrador General',
         status: 'active',
         expiryDate: '2030-12-31',
@@ -309,19 +319,31 @@ export const xtreamApi = {
   },
 
   async getUpstreamSettings(_token: string): Promise<UpstreamSettings> {
+    const settings = getDynamicSettings();
     return {
-      serverUrl: REAL_SERVER,
-      username: REAL_USER,
-      password: REAL_PASS,
+      serverUrl: settings.server,
+      username: settings.username,
+      password: settings.password,
     };
   },
 
   async setUpstreamSettings(_token: string, settings: UpstreamSettings): Promise<UpstreamSettings> {
+    localStorage.setItem('nesh_upstream_settings', JSON.stringify(settings));
     return settings;
   },
 
   async testUpstreamConnection(_token: string): Promise<any> {
-    return { connected: true, statusCode: '200', authStatus: 'OK' };
+    const settings = getDynamicSettings();
+    const url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}`;
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        return { connected: true, statusCode: '200', authStatus: 'OK' };
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return { connected: false, statusCode: '500', authStatus: 'ERROR' };
   },
 
   getSavedAccounts(): SavedAccount[] {
