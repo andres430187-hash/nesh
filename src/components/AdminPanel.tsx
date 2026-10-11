@@ -136,27 +136,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
     e.preventDefault();
     setError(null);
 
+    if (!formUsername.trim() || !formPassword.trim()) {
+      setError('El usuario y la contraseña son obligatorios');
+      return;
+    }
+
     try {
       let updatedUsers = [...users];
       if (editingUserId) {
         updatedUsers = updatedUsers.map(u => u.id === editingUserId ? {
           ...u,
-          username: formUsername,
-          password: formPassword,
-          name: formName,
+          username: formUsername.trim(),
+          password: formPassword.trim(),
+          name: formName.trim() || formUsername.trim(),
           expiryDate: formExpiry,
-          notes: formNotes,
+          notes: formNotes.trim(),
           status: formStatus
         } : u);
         setSuccessMessage('Usuario actualizado exitosamente');
       } else {
         const newUser: ManagedUser = {
           id: Date.now().toString(),
-          username: formUsername,
-          password: formPassword,
-          name: formName || formUsername,
+          username: formUsername.trim(),
+          password: formPassword.trim(),
+          name: formName.trim() || formUsername.trim(),
           expiryDate: formExpiry,
-          notes: formNotes,
+          notes: formNotes.trim(),
           status: formStatus,
           role: 'user'
         };
@@ -190,7 +195,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
   };
 
   const handleCopyAccess = (u: ManagedUser) => {
-    const text = 'Acceso a tu cuenta NesTV IPTV: Usuario: ' + u.username + ' | Contraseña: ' + u.password + ' | Vencimiento: ' + u.expiryDate;
+    const text = 'Acceso a tu cuenta NesTV IPTV:\nUsuario: ' + u.username + '\nContraseña: ' + u.password + '\nVencimiento: ' + u.expiryDate;
     navigator.clipboard.writeText(text);
     setCopiedId(u.id);
     setTimeout(() => setCopiedId(null), 2500);
@@ -569,7 +574,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
               Asigna los datos con los que este cliente iniciará sesión
             </p>
 
-            <form onSubmit={handleSaveUser} className="space-y-4">
+            <div className="space-y-4">
               <div>
                 <label className="block text-xs uppercase tracking-wider text-neutral-400 mb-1 font-semibold">
                   Nombre del Cliente
@@ -593,7 +598,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
                   onChange={(e) => setFormUsername(e.target.value)}
                   placeholder="ej: carlos2026"
                   className="w-full bg-[#1e1e1e] text-white px-4 py-2.5 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-sm font-mono"
-                  required
                 />
               </div>
 
@@ -614,7 +618,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
                   onChange={(e) => setFormPassword(e.target.value)}
                   placeholder="ej: tvpass77"
                   className="w-full bg-[#1e1e1e] text-white px-4 py-2.5 rounded-xl border border-transparent focus:border-[#00ff66] outline-none text-sm font-mono"
-                  required
                 />
               </div>
 
@@ -668,13 +671,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
                   Cancelar
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={(e) => handleSaveUser(e as any)}
                   className="flex-1 py-3 rounded-xl bg-[#00ff66] text-black font-extrabold text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(0,255,102,0.3)] hover:bg-[#00cc52] cursor-pointer"
                 >
                   {editingUserId ? 'Actualizar' : 'Crear Cuenta'}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
