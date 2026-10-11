@@ -69,7 +69,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onOpen
           activeCons: 1,
           createdAt: '2025-01-01',
           isDemo: false,
-        });
+          role: 'admin',
+        } as any);
         return;
       }
 
@@ -93,7 +94,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onOpen
       setIsLoading(false);
     }
   };
-
 
   const handleSelectSaved = (account: SavedAccount) => {
     setServerUrl(account.serverUrl);
