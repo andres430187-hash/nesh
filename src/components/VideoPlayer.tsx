@@ -10,18 +10,14 @@ import {
   Minimize,
   PictureInPicture2,
   Tv,
-  RotateCcw,
   SkipBack,
   SkipForward,
   Heart,
   Settings,
   Layers,
-  Check,
   AlertTriangle,
-  Radio,
-  Clock,
 } from 'lucide-react';
-import { NeshActiveStream, NeshContentType } from '../types';
+import { NeshActiveStream } from '../types';
 
 interface VideoPlayerProps {
   activeStream: NeshActiveStream;
@@ -85,14 +81,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   // Android Back button, Smart TV remote control, and Screen Wake Lock
   useEffect(() => {
-    // 1. Android physical back button integration
     window.history.pushState({ playerOpen: true }, '');
     const handlePopState = () => {
       onClose();
     };
     window.addEventListener('popstate', handlePopState);
 
-    // 2. D-pad TV Remote & Keyboard Controls
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
@@ -157,7 +151,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
 
-    // 3. Screen Wake Lock (prevents Android screen sleeping during video)
     let wakeLockSentinel: any = null;
     if ('wakeLock' in navigator) {
       (navigator as any).wakeLock?.request('screen').then((lock: any) => {
@@ -182,7 +175,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setIsLoading(true);
     setError(null);
 
-    // Destroy existing hls instance if any
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
@@ -204,7 +196,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         video.play().catch(() => {
-          // Autoplay blocked by browser policy, user needs to click play
           setIsPlaying(false);
         });
         setIsLoading(false);
@@ -220,7 +211,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 setUseProxy(true);
                 return;
               }
-              setError('Error de conexión con el flujo de video. Es posible que el stream esté fuera de línea.');
+              setError('Error de conexión con el flujo de video. Comprueba tu red.');
               hls.destroy();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
@@ -235,7 +226,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl') || !isHls) {
-      // Native video element playback (Safari or MP4)
       video.src = url;
       video
         .play()
@@ -259,7 +249,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
   }, [currentStreamUrl, activeStream, useProxy]);
 
-  // Video event listeners
   const onTimeUpdate = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -359,7 +348,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       onClick={resetControlsTimeout}
       className="fixed inset-0 z-50 bg-black flex items-center justify-center select-none overflow-hidden"
     >
-      {/* Video Element */}
       <video
         ref={videoRef}
         onTimeUpdate={onTimeUpdate}
@@ -378,7 +366,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }`}
       />
 
-      {/* Loading Spinner */}
       {isLoading && !error && (
         <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
           <div className="w-14 h-14 border-4 border-neutral-800 border-t-[#00ff66] rounded-full animate-spin shadow-[0_0_25px_rgba(0,255,102,0.4)]" />
@@ -388,7 +375,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
 
-      {/* Error View */}
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-6 text-center">
           <div className="w-16 h-16 rounded-full bg-red-950/80 border border-red-500/50 flex items-center justify-center text-red-400 mb-4 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
@@ -417,13 +403,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
 
-      {/* Controls Overlay */}
       <div
         className={`absolute inset-0 pointer-events-none flex flex-col justify-between transition-opacity duration-300 ${
           showControls ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        {/* Top Header Bar */}
         <div className="p-4 sm:p-6 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center justify-between pointer-events-auto">
           <div className="flex items-center gap-4 min-w-0">
             <button
@@ -451,7 +435,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Favorite button */}
             <button
               onClick={onToggleFavorite}
               className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
@@ -464,7 +447,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               <Heart className={`w-5 h-5 ${isFavorite ? 'fill-rose-500' : ''}`} />
             </button>
 
-            {/* Quick Channel / Stream list drawer button */}
             {relatedStreams.length > 0 && (
               <button
                 onClick={() => setShowQuickList(!showQuickList)}
@@ -479,7 +461,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               </button>
             )}
 
-            {/* Settings button */}
             <button
               onClick={() => setShowSettings(!showSettings)}
               className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
@@ -494,7 +475,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           </div>
         </div>
 
-        {/* Center Big Play Button (if paused) */}
         {!isPlaying && !isLoading && !error && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <button
@@ -506,14 +486,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           </div>
         )}
 
-        {/* Settings Flyout */}
         {showSettings && (
           <div className="absolute top-20 right-6 w-72 bg-[#121212]/95 border border-neutral-800 rounded-2xl p-4 shadow-2xl backdrop-blur-md pointer-events-auto z-20">
             <h4 className="text-xs uppercase font-bold text-neutral-400 tracking-wider mb-3">
               Ajustes de reproducción
             </h4>
             
-            {/* Aspect Ratio */}
             <div className="mb-4">
               <label className="text-xs text-neutral-300 block mb-2 font-medium">
                 Relación de aspecto:
@@ -535,7 +513,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               </div>
             </div>
 
-            {/* Proxy Toggle */}
             <div className="pt-2 border-t border-neutral-800">
               <div className="flex items-center justify-between">
                 <div>
@@ -559,9 +536,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           </div>
         )}
 
-        {/* Bottom Controls Bar */}
         <div className="p-4 sm:p-6 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-auto">
-          {/* Progress bar (VOD / Movies / Episodes) */}
           {!isLive && (
             <div className="mb-4 flex items-center gap-3">
               <span className="text-xs font-mono text-neutral-300 min-w-[45px]">
@@ -586,10 +561,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </div>
           )}
 
-          {/* Controls buttons row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 sm:gap-4">
-              {/* Play / Pause */}
               <button
                 onClick={handlePlayPause}
                 className="p-2.5 rounded-xl bg-[#00ff66] text-black hover:bg-[#00cc52] transition-transform hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(0,255,102,0.4)] cursor-pointer"
@@ -598,7 +571,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 {isPlaying ? <Pause className="w-5 h-5 fill-black" /> : <Play className="w-5 h-5 fill-black translate-x-0.5" />}
               </button>
 
-              {/* Prev Stream (Channel flip) */}
               {onPrev && (
                 <button
                   onClick={onPrev}
@@ -609,7 +581,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 </button>
               )}
 
-              {/* Next Stream (Channel flip) */}
               {onNext && (
                 <button
                   onClick={onNext}
@@ -620,7 +591,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 </button>
               )}
 
-              {/* Live indicator if live stream */}
               {isLive && (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-600/30 border border-red-500/50 text-red-400 text-xs font-bold tracking-wider uppercase">
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -628,7 +598,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 </div>
               )}
 
-              {/* Volume & Mute */}
               <div className="flex items-center gap-2 group">
                 <button
                   onClick={handleToggleMute}
@@ -654,7 +623,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Picture in Picture */}
               <button
                 onClick={handleTogglePip}
                 className="p-2.5 text-neutral-300 hover:text-white rounded-xl hover:bg-neutral-800 transition-colors cursor-pointer"
@@ -663,7 +631,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 <PictureInPicture2 className="w-5 h-5" />
               </button>
 
-              {/* Fullscreen */}
               <button
                 onClick={handleToggleFullscreen}
                 className="p-2.5 text-neutral-300 hover:text-white rounded-xl hover:bg-neutral-800 transition-colors cursor-pointer"
@@ -676,7 +643,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       </div>
 
-      {/* Quick Stream Drawer (Channel zapping guide) */}
       {showQuickList && relatedStreams.length > 0 && (
         <div className="absolute top-0 right-0 bottom-0 w-80 bg-black/95 border-l border-neutral-800 z-30 flex flex-col p-4 shadow-2xl backdrop-blur-md animate-in slide-in-from-right duration-200">
           <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
