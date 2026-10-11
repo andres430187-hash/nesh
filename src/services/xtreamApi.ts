@@ -35,7 +35,7 @@ export const normalizeUrl = (url: string): string => {
 };
 
 export const xtreamApi = {
-  // Login ultra robusto que valida tanto administradores, usuarios locales y servidores remotos
+  // Login que prioriza tu cuenta maestra y clientes locales
   async login({
     username,
     password,
@@ -62,7 +62,7 @@ export const xtreamApi = {
       };
     }
 
-    // 2. Verificar en usuarios locales guardados (memoria local persistente)
+    // 2. Verificar en usuarios locales guardados
     try {
       const managed = localStorage.getItem('nesh_managed_users');
       if (managed) {
@@ -90,7 +90,7 @@ export const xtreamApi = {
       if (err instanceof XtreamApiException) throw err;
     }
 
-    // 3. Conexión directa con el servidor Xtream Codes remoto (bstv.online:8080)
+    // 3. Conexión directa con tu servidor y credenciales fijas si coinciden o se requiere
     const targetServer = serverUrl && serverUrl.trim() !== '' ? serverUrl : 'http://bstv.online:8080';
     const cleanBase = normalizeUrl(targetServer);
     const loginUrl = `${cleanBase}/player_api.php?username=${encodeURIComponent(cleanUser)}&password=${encodeURIComponent(cleanPass)}`;
@@ -145,12 +145,7 @@ export const xtreamApi = {
     }
   },
 
-  // Obtener categorías con respaldo automático de demo si el servidor externo falla
   async getCategories(user: NeshUser, type: NeshContentType): Promise<NeshCategory[]> {
-    if (user.isDemo) {
-      return DEMO_CATEGORIES.filter((c) => c.type === type);
-    }
-
     const sUrl = user.serverUrl || 'http://bstv.online:8080';
     const action =
       type === 'live'
@@ -159,7 +154,7 @@ export const xtreamApi = {
         ? 'get_vod_categories'
         : 'get_series_categories';
 
-    const url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username)}&password=${encodeURIComponent(user.password || 'admin2026')}&action=${action}`;
+    const url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username)}&password=${encodeURIComponent(user.password || '9846871h')}&action=${action}`;
 
     try {
       const res = await fetch(url);
@@ -175,37 +170,17 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando categorías del servidor, usando respaldo:', e);
+      console.error(e);
     }
 
     return DEMO_CATEGORIES.filter((c) => c.type === type);
   },
 
-  // Obtener contenidos (canales, películas, series) evitando pantallas vacías
   async getContent(
     user: NeshUser,
     type: NeshContentType,
     categoryId?: string
   ): Promise<any[]> {
-    if (user.isDemo) {
-      if (type === 'live') {
-        return categoryId && categoryId !== 'all'
-          ? DEMO_LIVE_STREAMS.filter((s) => s.category_id === categoryId)
-          : DEMO_LIVE_STREAMS;
-      }
-      if (type === 'vod') {
-        return categoryId && categoryId !== 'all'
-          ? DEMO_VOD_STREAMS.filter((s) => s.category_id === categoryId)
-          : DEMO_VOD_STREAMS;
-      }
-      if (type === 'series') {
-        return categoryId && categoryId !== 'all'
-          ? DEMO_SERIES.filter((s) => s.category_id === categoryId)
-          : DEMO_SERIES;
-      }
-      return [];
-    }
-
     const sUrl = user.serverUrl || 'http://bstv.online:8080';
     const action =
       type === 'live'
@@ -214,7 +189,7 @@ export const xtreamApi = {
         ? 'get_vod_streams'
         : 'get_series';
 
-    let url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username)}&password=${encodeURIComponent(user.password || 'admin2026')}&action=${action}`;
+    let url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username)}&password=${encodeURIComponent(user.password || '9846871h')}&action=${action}`;
 
     if (categoryId && categoryId !== 'all') {
       url += `&category_id=${encodeURIComponent(categoryId)}`;
@@ -229,10 +204,9 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando contenido del servidor, usando respaldo:', e);
+      console.error(e);
     }
 
-    // Respaldo para que nunca quede vacío
     if (type === 'live') return DEMO_LIVE_STREAMS;
     if (type === 'vod') return DEMO_VOD_STREAMS;
     if (type === 'series') return DEMO_SERIES;
@@ -240,11 +214,10 @@ export const xtreamApi = {
     return [];
   },
 
-  // Obtener detalles de series
   async getSeriesInfo(user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
     const sId = String(seriesId);
     const sUrl = user.serverUrl || 'http://bstv.online:8080';
-    const url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username)}&password=${encodeURIComponent(user.password || 'admin2026')}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
+    const url = `${normalizeUrl(sUrl)}/player_api.php?username=${encodeURIComponent(user.username)}&password=${encodeURIComponent(user.password || '9846871h')}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
     
     try {
       const res = await fetch(url);
@@ -273,27 +246,32 @@ export const xtreamApi = {
     };
   },
 
-  // Enlaces de reproducción directos
+  // Construcción de URLs exactas con tu servidor y credenciales por defecto si faltan
   buildLiveStreamUrl(user: NeshUser, streamId: string | number, extension = 'm3u8'): string {
     const sUrl = normalizeUrl(user.serverUrl || 'http://bstv.online:8080');
-    return `${sUrl}/live/${user.username}/${user.password || 'admin2026'}/${streamId}.${extension}`;
+    const uName = user.username || '68moct01';
+    const uPass = user.password || '9846871h';
+    return `${sUrl}/live/${uName}/${uPass}/${streamId}.${extension}`;
   },
 
   buildVodStreamUrl(user: NeshUser, streamId: string | number, extension = 'mp4'): string {
     const sUrl = normalizeUrl(user.serverUrl || 'http://bstv.online:8080');
-    return `${sUrl}/movie/${user.username}/${user.password || 'admin2026'}/${streamId}.${extension}`;
+    const uName = user.username || '68moct01';
+    const uPass = user.password || '9846871h';
+    return `${sUrl}/movie/${uName}/${uPass}/${streamId}.${extension}`;
   },
 
   buildSeriesEpisodeUrl(user: NeshUser, episodeId: string | number, extension = 'mp4'): string {
     const sUrl = normalizeUrl(user.serverUrl || 'http://bstv.online:8080');
-    return `${sUrl}/series/${user.username}/${user.password || 'admin2026'}/${episodeId}.${extension}`;
+    const uName = user.username || '68moct01';
+    const uPass = user.password || '9846871h';
+    return `${sUrl}/series/${uName}/${uPass}/${episodeId}.${extension}`;
   },
 
   getProxyStreamUrl(streamUrl: string): string {
     return streamUrl;
   },
 
-  // MÉTODOS DE ADMINISTRACIÓN LOCAL GARANTIZADOS
   async getAdminUsers(_token: string): Promise<ManagedUser[]> {
     try {
       const data = localStorage.getItem('nesh_managed_users');
@@ -364,8 +342,8 @@ export const xtreamApi = {
     }
     return {
       serverUrl: 'http://bstv.online:8080',
-      username: '',
-      password: '',
+      username: '68moct01',
+      password: '9846871h',
     };
   },
 
@@ -378,14 +356,23 @@ export const xtreamApi = {
     return { connected: true, statusCode: '200', authStatus: 'OK' };
   },
 
-  // Gestión de cuentas guardadas en el navegador
   getSavedAccounts(): SavedAccount[] {
     try {
       const raw = localStorage.getItem('nestv_accounts');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
+      if (raw) return JSON.parse(raw);
+    } catch (e) {
+      console.error(e);
     }
+    // Cuenta por defecto pre-cargada con tus datos exactos
+    return [
+      {
+        id: 'http://bstv.online:8080_68moct01',
+        serverUrl: 'http://bstv.online:8080',
+        username: '68moct01',
+        label: '68moct01 (bstv.online:8080)',
+        lastUsed: Date.now(),
+      }
+    ];
   },
 
   saveAccount(user: NeshUser) {
@@ -422,7 +409,6 @@ export const xtreamApi = {
     }
   },
 
-  // Favoritos
   getFavorites(): string[] {
     try {
       const raw = localStorage.getItem('nestv_favorites');
