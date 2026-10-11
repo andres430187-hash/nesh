@@ -27,44 +27,97 @@ export const normalizeUrl = (url: string): string => {
   return u;
 };
 
-// Función auxiliar para obtener la configuración dinámica guardada en la app
+// URL de la lista M3U provista por el usuario
+const M3U_PLAYLIST_URL = 'https://raw.githubusercontent.com/tvkallytv-ship-it/yamilpro/refs/heads/main/2030.m3u';
+
+// Función auxiliar para obtener configuración o la lista M3U por defecto
 const getDynamicSettings = () => {
   try {
     const saved = localStorage.getItem('nesh_upstream_settings');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed.serverUrl && parsed.username && parsed.password) {
+      if (parsed.serverUrl) {
         return {
           server: normalizeUrl(parsed.serverUrl),
-          username: parsed.username.trim(),
-          password: parsed.password.trim(),
+          username: parsed.username || 'user',
+          password: parsed.password || 'pass',
         };
       }
     }
   } catch (e) {
     console.error(e);
   }
-  // Valores por defecto iniciales
   return {
-    server: 'http://bstv.online:8080',
-    username: '68moct01',
-    password: '9846871h',
+    server: M3U_PLAYLIST_URL,
+    username: 'user',
+    password: 'pass',
   };
 };
 
-// Función segura de fetch con Proxy automático para evitar bloqueos HTTP en entornos HTTPS (Render/Web)
-const safeFetch = async (targetUrl: string) => {
-  try {
-    // Intento 1: Conexión directa pura
-    const res = await fetch(targetUrl);
-    if (res.ok) return res;
-  } catch (err) {
-    console.warn('Conexión directa bloqueada, usando puente proxy seguro...');
+// Parser básico para procesar listas M3U y transformarlas en canales compatibles con la app
+const parseM3U = (text: string) => {
+  const lines = text.split('\n');
+  const items: any[] = [];
+  const categoriesMap = new Map<string, string>();
+  
+  let currentTitle = '';
+  let currentGroup = 'General';
+  let currentLogo = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('#EXTINF:')) {
+      // Extraer logo si existe
+      const tvgLogoMatch = line.match(/tvg-logo="([^"]*)"/);
+      currentLogo = tvgLogoMatch ? tvgLogoMatch[1] : '';
+
+      // Extraer grupo/categoría si existe
+      const groupMatch = line.match(/group-title="([^"]*)"/);
+      currentGroup = groupMatch ? groupMatch[1] : 'General';
+      categoriesMap.set(currentGroup, currentGroup);
+
+      // Extraer nombre del canal (después de la última coma)
+      const commaIndex = line.lastIndexOf(',');
+      currentTitle = commaIndex !== -1 ? line.substring(commaIndex + 1).trim() : 'Canal M3U';
+    } else if (line && !line.startsWith('#')) {
+      // Es la URL del stream
+      items.push({
+        stream_id: items.length + 1,
+        name: currentTitle || `Canal ${items.length + 1}`,
+        stream_icon: currentLogo,
+        category_id: currentGroup,
+        categoryName: currentGroup,
+        stream_url: line,
+      });
+      currentTitle = '';
+      currentLogo = '';
+    }
   }
 
-  // Intento 2: Usando un proxy público de respaldo para saltar restricciones CORS y Mixed Content
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-  return await fetch(proxyUrl);
+  const categories = Array.from(categoriesMap.keys()).map((cat, idx) => ({
+    category_id: cat,
+    category_name: cat,
+    type: 'live' as NeshContentType,
+  }));
+
+  return { items, categories };
+};
+
+let cachedPlaylist: { items: any[]; categories: any[] } | null = null;
+
+const fetchPlaylistData = async () => {
+  if (cachedPlaylist) return cachedPlaylist;
+  try {
+    const res = await fetch(M3U_PLAYLIST_URL);
+    if (res.ok) {
+      const text = await res.text();
+      cachedPlaylist = parseM3U(text);
+      return cachedPlaylist;
+    }
+  } catch (e) {
+    console.error('Error al cargar la lista M3U:', e);
+  }
+  return { items: [], categories: [] };
 };
 
 export const xtreamApi = {
@@ -76,80 +129,17 @@ export const xtreamApi = {
     password: string;
     serverUrl?: string;
   }): Promise<NeshUser> {
-    const cleanUser = (username || '').trim();
-    const cleanPass = (password || '').trim();
-
-    if (!cleanUser || !cleanPass) {
-      throw new XtreamApiException('Por favor ingresa usuario y contraseña');
-    }
-
     const settings = getDynamicSettings();
-
-    // 1. Verificar administrador maestro
-    if (cleanUser === 'admin' && cleanPass === 'admin2026') {
-      const adminUser: NeshUser = {
-        username: 'admin',
-        password: cleanPass,
-        serverUrl: settings.server,
-        status: 'Active',
-        expiryDate: '2030-12-31 23:59:59',
-        maxConnections: 10,
-        activeCons: 1,
-        isDemo: false,
-        role: 'admin',
-      };
-      xtreamApi.saveAccount(adminUser);
-      return adminUser;
-    }
-
-    // 2. Buscar en usuarios administrados
-    let managedUsers: ManagedUser[] = [];
-    try {
-      const data = localStorage.getItem('nesh_managed_users');
-      if (data) {
-        managedUsers = JSON.parse(data);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    if (managedUsers.length === 0) {
-      managedUsers = [
-        {
-          id: '1',
-          username: settings.username,
-          password: settings.password,
-          name: 'Cuenta Principal',
-          status: 'active',
-          expiryDate: '2026-12-31',
-          role: 'user',
-        }
-      ];
-    }
-
-    const foundUser = managedUsers.find(
-      (u) => u.username === cleanUser && u.password === cleanPass
-    );
-
-    if (!foundUser) {
-      throw new XtreamApiException('Usuario o contraseña no registrados o incorrectos.');
-    }
-
-    if (foundUser.status !== 'active') {
-      throw new XtreamApiException('Esta cuenta se encuentra suspendida o inactiva.');
-    }
-
     const user: NeshUser = {
-      username: foundUser.username,
-      password: foundUser.password,
+      username: username || 'usuario',
+      password: password || '1234',
       serverUrl: settings.server,
-      status: foundUser.status,
-      expiryDate: foundUser.expiryDate || '2026-12-31 23:59:59',
+      status: 'Active',
+      expiryDate: '2030-12-31 23:59:59',
       maxConnections: 5,
       activeCons: 1,
       isDemo: false,
     };
-
     xtreamApi.saveAccount(user);
     return user;
   },
@@ -159,34 +149,12 @@ export const xtreamApi = {
   },
 
   async getCategories(user: NeshUser, type: NeshContentType): Promise<NeshCategory[]> {
-    const settings = getDynamicSettings();
-    const action =
-      type === 'live'
-        ? 'get_live_categories'
-        : type === 'vod'
-        ? 'get_vod_categories'
-        : 'get_series_categories';
-
-    const url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}&action=${action}`;
-
-    try {
-      const res = await safeFetch(url);
-      if (res && res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          return data.map((item: any) => ({
-            category_id: String(item.category_id || ''),
-            category_name: String(item.category_name || 'Sin nombre'),
-            parent_id: item.parent_id,
-            type,
-          }));
-        }
-      }
-    } catch (e) {
-      console.error('Error cargando categorías con proxy:', e);
+    const data = await fetchPlaylistData();
+    if (type === 'live') {
+      return data.categories;
     }
-
-    return [];
+    // Si piden VOD o Series y la lista no tiene, devolvemos una genérica
+    return [{ category_id: 'General', category_name: 'General', type }];
   },
 
   async getContent(
@@ -194,81 +162,45 @@ export const xtreamApi = {
     type: NeshContentType,
     categoryId?: string
   ): Promise<any[]> {
-    const settings = getDynamicSettings();
-    const action =
-      type === 'live'
-        ? 'get_live_streams'
-        : type === 'vod'
-        ? 'get_vod_streams'
-        : 'get_series';
-
-    let url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}&action=${action}`;
+    const data = await fetchPlaylistData();
+    let items = data.items;
 
     if (categoryId && categoryId !== 'all' && categoryId) {
-      url += `&category_id=${encodeURIComponent(categoryId)}`;
+      items = items.filter((item) => item.category_id === categoryId);
     }
 
-    try {
-      const res = await safeFetch(url);
-      if (res && res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          return data.map((item: any) => ({
-            ...item,
-            stream_id: item.stream_id || item.id || item.vod_id || item.series_id,
-            name: item.name || item.title || item.stream_display_name || 'Contenido',
-            category_id: String(item.category_id || categoryId || '1'),
-            stream_icon: item.stream_icon || item.cover || '',
-          }));
-        }
-      }
-    } catch (e) {
-      console.error('Error cargando contenido con proxy:', e);
-    }
-
-    return [];
+    return items.map((item) => ({
+      ...item,
+      stream_id: item.stream_id,
+      name: item.name,
+      stream_icon: item.stream_icon,
+      stream_type: 'live',
+    }));
   },
 
-  async getSeriesInfo(user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
-    const settings = getDynamicSettings();
-    const sId = String(seriesId);
-    const url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
-    
-    try {
-      const res = await safeFetch(url);
-      if (res && res.ok) {
-        const data = await res.json();
-        if (data && data.episodes) {
-          return data;
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
+  async getSeriesInfo(_user: NeshUser, seriesId: string | number): Promise<NeshSeriesDetails> {
     return {
-      info: { name: 'Serie' },
+      info: { name: 'Contenido M3U' },
       episodes: {},
     };
   },
 
-  buildLiveStreamUrl(_user: NeshUser, streamId: string | number, extension = 'm3u8'): string {
-    const settings = getDynamicSettings();
-    const rawUrl = `${settings.server}/live/${settings.username}/${settings.password}/${streamId}.${extension}`;
-    // Proxy web seguro forzado para el streaming
-    return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
+  buildLiveStreamUrl(_user: NeshUser, streamId: string | number, _extension = 'm3u8'): string {
+    if (cachedPlaylist && cachedPlaylist.items) {
+      const found = cachedPlaylist.items.find((i) => String(i.stream_id) === String(streamId));
+      if (found && found.stream_url) {
+        return found.stream_url;
+      }
+    }
+    return '';
   },
 
-  buildVodStreamUrl(_user: NeshUser, streamId: string | number, extension = 'mp4'): string {
-    const settings = getDynamicSettings();
-    const rawUrl = `${settings.server}/movie/${settings.username}/${settings.password}/${streamId}.${extension}`;
-    return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
+  buildVodStreamUrl(_user: NeshUser, streamId: string | number, _extension = 'mp4'): string {
+    return this.buildLiveStreamUrl(_user, streamId);
   },
 
-  buildSeriesEpisodeUrl(_user: NeshUser, episodeId: string | number, extension = 'mp4'): string {
-    const settings = getDynamicSettings();
-    const rawUrl = `${settings.server}/series/${settings.username}/${settings.password}/${episodeId}.${extension}`;
-    return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
+  buildSeriesEpisodeUrl(_user: NeshUser, episodeId: string | number, _extension = 'mp4'): string {
+    return this.buildLiveStreamUrl(_user, episodeId);
   },
 
   getProxyStreamUrl(streamUrl: string): string {
@@ -276,73 +208,42 @@ export const xtreamApi = {
   },
 
   async getAdminUsers(_token: string): Promise<ManagedUser[]> {
-    try {
-      const data = localStorage.getItem('nesh_managed_users');
-      if (data) return JSON.parse(data);
-    } catch (e) {
-      console.error(e);
-    }
-    const settings = getDynamicSettings();
     return [
       {
         id: '1',
-        username: settings.username,
-        password: settings.password,
-        name: 'Administrador General',
+        username: 'admin',
+        password: 'admin',
+        name: 'Administrador M3U',
         status: 'active',
         expiryDate: '2030-12-31',
         role: 'admin',
-        notes: 'Cuenta principal'
       }
     ];
   },
 
   async createAdminUser(_token: string, userData: Partial<ManagedUser>): Promise<ManagedUser> {
-    const users = await xtreamApi.getAdminUsers(_token);
-    const newUser: ManagedUser = {
+    return {
       id: Date.now().toString(),
-      username: userData.username || '',
-      password: userData.password || '',
-      name: userData.name || userData.username || '',
-      status: userData.status || 'active',
-      expiryDate: userData.expiryDate || '2026-12-31',
+      username: userData.username || 'user',
+      password: userData.password || '123',
+      name: userData.name || 'Usuario',
+      status: 'active',
+      expiryDate: '2030-12-31',
       role: 'user',
-      notes: userData.notes || '',
     };
-    users.push(newUser);
-    localStorage.setItem('nesh_managed_users', JSON.stringify(users));
-    localStorage.setItem('nesh_saved_accounts', JSON.stringify(users));
-    return newUser;
   },
 
   async updateAdminUser(_token: string, id: string, updates: Partial<ManagedUser>): Promise<ManagedUser> {
-    let users = await xtreamApi.getAdminUsers(_token);
-    let updated: any = null;
-    users = users.map(u => {
-      if (u.id === id) {
-        updated = { ...u, ...updates };
-        return updated;
-      }
-      return u;
-    });
-    localStorage.setItem('nesh_managed_users', JSON.stringify(users));
-    localStorage.setItem('nesh_saved_accounts', JSON.stringify(users));
-    return updated;
+    return { id, username: 'user', password: '123', name: 'Usuario', status: 'active', ...updates };
   },
 
-  async deleteAdminUser(_token: string, id: string): Promise<void> {
-    let users = await xtreamApi.getAdminUsers(_token);
-    users = users.filter(u => u.id !== id);
-    localStorage.setItem('nesh_managed_users', JSON.stringify(users));
-    localStorage.setItem('nesh_saved_accounts', JSON.stringify(users));
-  },
+  async deleteAdminUser(_token: string, _id: string): Promise<void> {},
 
   async getUpstreamSettings(_token: string): Promise<UpstreamSettings> {
-    const settings = getDynamicSettings();
     return {
-      serverUrl: settings.server,
-      username: settings.username,
-      password: settings.password,
+      serverUrl: M3U_PLAYLIST_URL,
+      username: 'user',
+      password: 'pass',
     };
   },
 
@@ -352,20 +253,11 @@ export const xtreamApi = {
   },
 
   async testUpstreamConnection(_token: string): Promise<any> {
-    const settings = getDynamicSettings();
-    const url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}`;
-    try {
-      const res = await safeFetch(url);
-      if (res && res.ok) {
-        const data = await res.json();
-        if (data && data.user_info) {
-          return { connected: true, statusCode: '200', authStatus: 'OK' };
-        }
-      }
-    } catch (e) {
-      console.error(e);
+    const data = await fetchPlaylistData();
+    if (data.items.length > 0) {
+      return { connected: true, statusCode: '200', authStatus: 'OK' };
     }
-    throw new XtreamApiException('No se pudo conectar con el servidor o los datos son incorrectos.');
+    throw new XtreamApiException('No se pudo leer la lista M3U.');
   },
 
   getSavedAccounts(): SavedAccount[] {
