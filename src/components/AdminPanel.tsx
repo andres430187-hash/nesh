@@ -89,6 +89,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
         ];
         setUsers(initialUsers);
         localStorage.setItem('nesh_managed_users', JSON.stringify(initialUsers));
+        localStorage.setItem('nesh_saved_accounts', JSON.stringify(initialUsers));
       }
 
       const savedUpstream = localStorage.getItem('nesh_upstream_settings');
@@ -170,7 +171,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
       }
 
       setUsers(updatedUsers);
+      // Guardar en la base de datos local y en las cuentas guardadas para evitar errores 404
       localStorage.setItem('nesh_managed_users', JSON.stringify(updatedUsers));
+      localStorage.setItem('nesh_saved_accounts', JSON.stringify(updatedUsers));
+      
       setShowUserModal(false);
       setTimeout(() => setSuccessMessage(null), 3500);
     } catch (err: any) {
@@ -183,6 +187,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
     const updatedUsers = users.map(item => item.id === u.id ? { ...item, status: nextStatus } : item);
     setUsers(updatedUsers);
     localStorage.setItem('nesh_managed_users', JSON.stringify(updatedUsers));
+    localStorage.setItem('nesh_saved_accounts', JSON.stringify(updatedUsers));
   };
 
   const handleDeleteUser = async (u: ManagedUser) => {
@@ -190,6 +195,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
     const updatedUsers = users.filter(item => item.id !== u.id);
     setUsers(updatedUsers);
     localStorage.setItem('nesh_managed_users', JSON.stringify(updatedUsers));
+    localStorage.setItem('nesh_saved_accounts', JSON.stringify(updatedUsers));
     setSuccessMessage(`Usuario ${u.username} eliminado`);
     setTimeout(() => setSuccessMessage(null), 3000);
   };
@@ -213,8 +219,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
       };
       setUpstream(newSettings);
       localStorage.setItem('nesh_upstream_settings', JSON.stringify(newSettings));
-      setSuccessMessage('Configuración del servidor IPTV maestro guardada');
-      setTimeout(() => setSuccessMessage(null), 3500);
+      
+      setSuccessMessage('¡Configuración guardada! Actualizando reproductor y canales...');
+      setTimeout(() => {
+        window.location.reload(); // Recarga limpia para aplicar la nueva lista y reproducir canales
+      }, 1500);
     } catch (err: any) {
       setError('Error al guardar servidor maestro');
     } finally {
@@ -546,7 +555,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
                     disabled={isSavingUpstream}
                     className="px-6 py-3 rounded-xl bg-[#00ff66] text-black font-extrabold text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_15px_rgba(0,255,102,0.3)] hover:bg-[#00cc52] transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {isSavingUpstream ? 'GUARDANDO...' : 'GUARDAR CONFIGURACIÓN'}
+                    {isSavingUpstream ? 'GUARDANDO...' : 'GUARDAR CONFIGURACIÓN Y ACTUALIZAR'}
                   </button>
                 </div>
               </form>
