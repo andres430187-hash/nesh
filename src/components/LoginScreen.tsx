@@ -26,10 +26,10 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onOpenInstall }) => {
   // Mode: 'direct' (just user + password) vs 'xtream' (server URL + user + password)
-  const [loginMode, setLoginMode] = useState<'direct' | 'xtream'>('direct');
-  const [serverUrl, setServerUrl] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [loginMode, setLoginMode] = useState<'direct' | 'xtream'>('xtream');
+  const [serverUrl, setServerUrl] = useState('http://smarterstv99.dyndns.tv:25461');
+  const [username, setUsername] = useState('BTVCOL');
+  const [password, setPassword] = useState('w2gNRjBYsrHA');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -58,8 +58,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onOpen
     setErrorMessage(null);
 
     try {
-      // If direct mode, or serverUrl is left blank, authenticate directly with the built-in IPTV catalog
-      const targetServer = loginMode === 'xtream' ? serverUrl.trim() : '';
+      // Si usas el usuario de admin, entramos directo al panel de administración
+      if (u === 'admin' && p === 'admin2026') {
+        onLoginSuccess({
+          username: 'admin',
+          status: 'Active',
+          expiryDate: '2030-12-31 23:59:59',
+          isTrial: false,
+          maxConnections: 10,
+          activeCons: 1,
+          createdAt: '2025-01-01',
+          isDemo: false,
+        });
+        return;
+      }
+
+      // Si no es admin, intenta conectar normalmente con Xtream
+      const targetServer = loginMode === 'xtream' ? serverUrl.trim() : 'http://smarterstv99.dyndns.tv:25461';
 
       const user = await xtreamApi.login({
         username: u,
