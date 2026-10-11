@@ -27,7 +27,7 @@ export const normalizeUrl = (url: string): string => {
   return u;
 };
 
-// Función auxiliar para obtener la configuración dinámica guardada en la app (Servidor, Usuario y Contraseña)
+// Función auxiliar para obtener la configuración dinámica guardada en la app
 const getDynamicSettings = () => {
   try {
     const saved = localStorage.getItem('nesh_upstream_settings');
@@ -50,6 +50,21 @@ const getDynamicSettings = () => {
     username: '68moct01',
     password: '9846871h',
   };
+};
+
+// Función segura de fetch con Proxy automático para evitar bloqueos HTTP en entornos HTTPS (Render/Web)
+const safeFetch = async (targetUrl: string) => {
+  try {
+    // Intento 1: Conexión directa pura
+    const res = await fetch(targetUrl);
+    if (res.ok) return res;
+  } catch (err) {
+    console.warn('Conexión directa bloqueada, usando puente proxy seguro...');
+  }
+
+  // Intento 2: Usando un proxy público de respaldo para saltar restricciones CORS y Mixed Content
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+  return await fetch(proxyUrl);
 };
 
 export const xtreamApi = {
@@ -155,8 +170,8 @@ export const xtreamApi = {
     const url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}&action=${action}`;
 
     try {
-      const res = await fetch(url);
-      if (res.ok) {
+      const res = await safeFetch(url);
+      if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
           return data.map((item: any) => ({
@@ -168,7 +183,7 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando categorías directas:', e);
+      console.error('Error cargando categorías con proxy:', e);
     }
 
     return [];
@@ -194,8 +209,8 @@ export const xtreamApi = {
     }
 
     try {
-      const res = await fetch(url);
-      if (res.ok) {
+      const res = await safeFetch(url);
+      if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
           return data.map((item: any) => ({
@@ -208,7 +223,7 @@ export const xtreamApi = {
         }
       }
     } catch (e) {
-      console.error('Error cargando contenido directo:', e);
+      console.error('Error cargando contenido con proxy:', e);
     }
 
     return [];
@@ -220,8 +235,8 @@ export const xtreamApi = {
     const url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}&action=get_series_info&series_id=${encodeURIComponent(sId)}`;
     
     try {
-      const res = await fetch(url);
-      if (res.ok) {
+      const res = await safeFetch(url);
+      if (res && res.ok) {
         const data = await res.json();
         if (data && data.episodes) {
           return data;
@@ -336,10 +351,9 @@ export const xtreamApi = {
     const settings = getDynamicSettings();
     const url = `${settings.server}/player_api.php?username=${encodeURIComponent(settings.username)}&password=${encodeURIComponent(settings.password)}`;
     try {
-      const res = await fetch(url);
-      if (res.ok) {
+      const res = await safeFetch(url);
+      if (res && res.ok) {
         const data = await res.json();
-        // Comprobación real y estricta del servidor IPTV
         if (data && data.user_info) {
           return { connected: true, statusCode: '200', authStatus: 'OK' };
         }
