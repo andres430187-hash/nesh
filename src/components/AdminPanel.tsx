@@ -43,9 +43,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Connection test state
   const [isTestingUpstream, setIsTestingUpstream] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
 
+  // User modal (Create / Edit)
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [formUsername, setFormUsername] = useState('');
@@ -55,14 +57,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
   const [formNotes, setFormNotes] = useState('');
   const [formStatus, setFormStatus] = useState<'active' | 'suspended'>('active');
 
+  // Upstream form
   const [upServerUrl, setUpServerUrl] = useState('http://smarterstv99.dyndns.tv:25461');
   const [upUsername, setUpUsername] = useState('BTVCOL');
   const [upPassword, setUpPassword] = useState('w2gNRjBYsrHA');
   const [showUpPassword, setShowUpPassword] = useState(false);
   const [isSavingUpstream, setIsSavingUpstream] = useState(false);
 
+  // Copied indicator
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Load data safely
   const loadLocalData = () => {
     setIsLoadingUsers(true);
     try {
@@ -239,6 +244,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
       <div className="relative w-full max-w-5xl bg-[#121212] border border-neutral-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col my-auto max-h-[90vh]">
+        {/* Top Header */}
         <div className="p-5 sm:p-6 border-b border-neutral-800 flex items-center justify-between bg-black/60">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#00ff66]/15 border border-[#00ff66] flex items-center justify-center text-[#00ff66] shadow-[0_0_15px_rgba(0,255,102,0.3)]">
@@ -265,6 +271,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
           </button>
         </div>
 
+        {/* Tab Switcher */}
         <div className="px-6 pt-4 border-b border-neutral-800 flex gap-2 bg-[#161616]">
           <button
             onClick={() => setActiveTab('users')}
@@ -291,6 +298,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
           </button>
         </div>
 
+        {/* Alerts & Messages */}
         <div className="px-6 pt-4">
           {error && (
             <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-500/50 text-red-200 text-xs sm:text-sm flex items-start gap-2.5 mb-3">
@@ -310,6 +318,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
           )}
         </div>
 
+        {/* TAB 1: USERS MANAGEMENT */}
         {activeTab === 'users' && (
           <div className="p-6 flex-1 overflow-y-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
@@ -339,6 +348,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
               </div>
             </div>
 
+            {/* Users Table / List */}
             <div className="bg-[#181818] border border-neutral-800 rounded-2xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -453,6 +463,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
           </div>
         )}
 
+        {/* TAB 2: UPSTREAM MASTER IPTV SETTINGS */}
         {activeTab === 'upstream' && (
           <div className="p-6 flex-1 overflow-y-auto space-y-6">
             <div className="bg-[#181818] border border-neutral-800 rounded-2xl p-6">
@@ -550,6 +561,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onClose }) 
         )}
       </div>
 
+      {/* CREATE / EDIT USER MODAL */}
       {showUserModal && (
         <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="relative w-full max-w-md bg-[#121212] border border-neutral-800 rounded-3xl p-6 shadow-2xl">
