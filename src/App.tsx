@@ -259,6 +259,9 @@ export default function App() {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
+  // Check if current user is admin
+  const isAdmin = user.username === 'admin' || user.role === 'admin';
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Top Navigation */}
@@ -350,7 +353,7 @@ export default function App() {
       )}
 
       {/* Admin Users & IPTV Protection Panel */}
-      {showAdminPanel && user.role === 'admin' && (
+      {showAdminPanel && isAdmin && (
         <AdminPanel
           currentUser={user}
           onClose={() => setShowAdminPanel(false)}
