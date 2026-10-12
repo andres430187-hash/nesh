@@ -27,66 +27,6 @@ export const normalizeUrl = (url: string): string => {
   return u;
 };
 
-// Parser opcional para listas M3U si el usuario carga una URL de lista directa
-const parseM3U = (text: string) => {
-  const lines = text.split('\n');
-  const items: any[] = [];
-  const categoriesMap = new Map<string, string>();
-  
-  let currentTitle = '';
-  let currentGroup = 'General M3U';
-  let currentLogo = '';
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.startsWith('#EXTINF:')) {
-      const tvgLogoMatch = line.match(/tvg-logo="([^"]*)"/);
-      currentLogo = tvgLogoMatch ? tvgLogoMatch[1] : '';
-
-      const groupMatch = line.match(/group-title="([^"]*)"/);
-      currentGroup = groupMatch ? groupMatch[1] : 'General M3U';
-      categoriesMap.set(currentGroup, currentGroup);
-
-      const commaIndex = line.lastIndexOf(',');
-      currentTitle = commaIndex !== -1 ? line.substring(commaIndex + 1).trim() : 'Canal M3U';
-    } else if (line && !line.startsWith('#')) {
-      items.push({
-        stream_id: items.length + 1,
-        name: currentTitle || `Canal ${items.length + 1}`,
-        stream_icon: currentLogo,
-        category_id: currentGroup,
-        categoryName: currentGroup,
-        stream_url: line,
-      });
-      currentTitle = '';
-      currentLogo = '';
-    }
-  }
-
-  const categories = Array.from(categoriesMap.keys()).map((cat) => ({
-    category_id: cat,
-    category_name: cat,
-    type: 'live' as NeshContentType,
-  }));
-
-  return { items, categories };
-};
-
-const getStoredM3uUrl = (): string => {
-  try {
-    const saved = localStorage.getItem('nesh_upstream_settings');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.serverUrl && (parsed.serverUrl.endsWith('.m3u') || parsed.serverUrl.includes('raw.githubusercontent.com') || parsed.serverUrl.includes('m3u8'))) {
-        return parsed.serverUrl;
-      }
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  return '';
-};
-
 const request = async (endpoint: string, params?: Record<string, any>, user?: NeshUser) => {
   const server = user ? normalizeUrl(user.serverUrl) : '';
   const username = user ? user.username : '';
@@ -117,20 +57,43 @@ export const xtreamApi = {
   async login({ username, password, serverUrl }: { username: string; password: string; serverUrl: string }): Promise<NeshUser> {
     const server = normalizeUrl(serverUrl);
     
-    // Si el usuario puso una URL M3U en lugar de un servidor Xtream tradicional, permitimos acceso directo simulado
-    if (server.endsWith('.m3u') || server.includes('raw.githubusercontent.com')) {
-      const user: NeshUser = {
-        username: username || 'm3u_user',
-        password: password || '1234',
-        serverUrl: server,
+    const savedUsers = localStorage.getItem('nesh_managed_users');
+    if (savedUsers) {
+      try {
+        const usersList: ManagedUser[] = JSON.parse(savedUsers);
+        const found = usersList.find(u => u.username === username && u.password === password);
+        if (found) {
+          const adminUser: NeshUser = {
+            username: found.username,
+            password: found.password,
+            serverUrl: server || 'http://localhost',
+            status: 'Active',
+            expiryDate: found.expiryDate || '2030-12-31',
+            maxConnections: 5,
+            activeCons: 1,
+            isDemo: false,
+          };
+          xtreamApi.saveAccount(adminUser);
+          return adminUser;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    if (username === 'admin' && password === 'admin2026') {
+      const defaultAdmin: NeshUser = {
+        username: 'admin',
+        password: 'admin2026',
+        serverUrl: server || 'http://localhost',
         status: 'Active',
-        expiryDate: '2030-12-31 23:59:59',
+        expiryDate: '2030-12-31',
         maxConnections: 5,
         activeCons: 1,
         isDemo: false,
       };
-      xtreamApi.saveAccount(user);
-      return user;
+      xtreamApi.saveAccount(defaultAdmin);
+      return defaultAdmin;
     }
 
     const data = await request('login', undefined, { username, password, serverUrl: server } as NeshUser);
@@ -155,20 +118,6 @@ export const xtreamApi = {
   },
 
   async categories(user: NeshUser, type: NeshContentType): Promise<NeshCategory[]> {
-    const m3uUrl = getStoredM3uUrl() || (user.serverUrl.endsWith('.m3u') ? user.serverUrl : '');
-    if (m3uUrl) {
-      try {
-        const res = await fetch(m3uUrl);
-        if (res.ok) {
-          const text = await res.text();
-          const parsed = parseM3U(text);
-          return parsed.categories;
-        }
-      } catch (e) {
-        console.error('Error cargando M3U en categorías:', e);
-      }
-    }
-
     const action = type === 'live' ? 'get_live_categories' : type === 'vod' ? 'get_vod_categories' : 'get_series_categories';
     const data = await request(action, undefined, user);
     if (!Array.isArray(data)) return [];
@@ -180,24 +129,6 @@ export const xtreamApi = {
   },
 
   async getContent(user: NeshUser, type: NeshContentType, categoryId?: string): Promise<any[]> {
-    const m3uUrl = getStoredM3uUrl() || (user.serverUrl.endsWith('.m3u') ? user.serverUrl : '');
-    if (m3uUrl) {
-      try {
-        const res = await fetch(m3uUrl);
-        if (res.ok) {
-          const text = await res.text();
-          const parsed = parseM3U(text);
-          let items = parsed.items;
-          if (categoryId && categoryId !== 'all') {
-            items = items.filter((i) => String(i.category_id) === String(categoryId));
-          }
-          return items;
-        }
-      } catch (e) {
-        console.error('Error cargando M3U en contenido:', e);
-      }
-    }
-
     const action = type === 'live' ? 'get_live_streams' : type === 'vod' ? 'get_vod_streams' : 'get_series';
     const params: Record<string, any> = {};
     if (categoryId && categoryId !== 'all') {
@@ -214,10 +145,6 @@ export const xtreamApi = {
   },
 
   buildLiveStreamUrl(user: NeshUser, streamId: string | number, extension = 'm3u8'): string {
-    // Si es una lista M3U cargada, devolvemos el enlace directo del stream almacenado
-    if (user.serverUrl.endsWith('.m3u') || user.serverUrl.includes('raw.githubusercontent.com')) {
-      return String(streamId);
-    }
     const server = normalizeUrl(user.serverUrl);
     return `${server}/live/${encodeURIComponent(user.username)}/${encodeURIComponent(user.password)}/${streamId}.${extension}`;
   },
